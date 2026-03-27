@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <link rel="stylesheet" href="/src/styles.css" />
@@ -182,7 +182,7 @@
       <div id="debug-console" class="debug-console hidden">
         <div class="debug-header">
           <span>Debug Console</span>
-          <button type="button" id="debug-clear" class="btn btn-ghost" title="Clear console">
+          <button type="button" id="debug-clear" class="btn btn-ghost" title="Clear console" aria-label="Clear debug console">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
               <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
             </svg>
@@ -211,12 +211,12 @@
         </div>
         <div class="toolbar-right">
           <input type="text" id="filter-input" class="filter-input" placeholder="Filter results..." />
-          <button type="button" id="copy-btn" class="btn btn-ghost" title="Copy all URLs">
+          <button type="button" id="copy-btn" class="btn btn-ghost" title="Copy all URLs" aria-label="Copy all URLs">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
               <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
             </svg>
           </button>
-          <button type="button" id="clear-btn" class="btn btn-ghost" title="Clear results">
+          <button type="button" id="clear-btn" class="btn btn-ghost" title="Clear results" aria-label="Clear results">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
               <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
             </svg>

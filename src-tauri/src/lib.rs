@@ -9,6 +9,12 @@ use tokio::process::Command;
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
+/// Maximum allowed username length.
+const MAX_USERNAME_LEN: usize = 64;
+
+/// Global search timeout in seconds (safety net).
+const GLOBAL_SEARCH_TIMEOUT_SECS: u64 = 600;
+
 #[derive(Clone, Serialize)]
 struct SherlockResult {
     site: String,
@@ -66,7 +72,48 @@ fn get_python_path(app: &AppHandle) -> Result<PathBuf, String> {
         return Ok(dev_path);
     }
 
-    Err("Embedded Python not found. Run scripts/setup-python.ps1 first.".to_string())
+    Err("Embedded Python not found. Please reinstall the application.".to_string())
+}
+
+/// Validate a proxy URL: must match scheme://host[:port] pattern.
+fn validate_proxy(proxy: &str) -> Result<(), String> {
+    if proxy.is_empty() {
+        return Ok(());
+    }
+    let re_chars = proxy.chars().all(|c| {
+        c.is_alphanumeric() || ".:/-_@[]".contains(c)
+    });
+    if !re_chars {
+        return Err("Invalid proxy URL: contains forbidden characters".to_string());
+    }
+    if !(proxy.starts_with("http://")
+        || proxy.starts_with("https://")
+        || proxy.starts_with("socks4://")
+        || proxy.starts_with("socks5://"))
+    {
+        return Err(
+            "Invalid proxy URL: must start with http://, https://, socks4:// or socks5://"
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
+/// Validate a site name: only allow alphanumeric, dots, hyphens, spaces.
+fn validate_site_name(site: &str) -> Result<(), String> {
+    if site.is_empty() {
+        return Err("Site name cannot be empty".to_string());
+    }
+    if !site
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '.' || c == '-' || c == ' ' || c == '_')
+    {
+        return Err(format!(
+            "Invalid site name '{}': only alphanumeric, dots, hyphens, underscores and spaces are allowed",
+            site
+        ));
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -117,13 +164,25 @@ async fn search_username(
     usernames: Vec<String>,
     options: SearchOptions,
 ) -> Result<(), String> {
+    // Prevent concurrent searches
+    if SEARCH_RUNNING.load(Ordering::SeqCst) {
+        return Err("A search is already in progress".to_string());
+    }
+
     if usernames.is_empty() {
         return Err("At least one username is required".to_string());
     }
 
+    // Validate usernames
     for username in &usernames {
         if username.trim().is_empty() {
             return Err("Username cannot be empty".to_string());
+        }
+        if username.len() > MAX_USERNAME_LEN {
+            return Err(format!(
+                "Username '{}' is too long (max {} characters)",
+                username, MAX_USERNAME_LEN
+            ));
         }
         if !username
             .chars()
@@ -134,6 +193,14 @@ async fn search_username(
                 username
             ));
         }
+    }
+
+    // Validate proxy
+    validate_proxy(&options.proxy)?;
+
+    // Validate site names
+    for site in &options.sites {
+        validate_site_name(site)?;
     }
 
     let python_path = get_python_path(&app)?;
@@ -221,7 +288,7 @@ async fn search_username(
     let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
     let stderr = child.stderr.take().ok_or("Failed to capture stderr")?;
 
-    // Read stderr in background — emit lines in debug mode
+    // Read stderr in background
     let app_for_stderr = app.clone();
     let stderr_handle = tokio::spawn(async move {
         let reader = BufReader::new(stderr);
@@ -244,115 +311,147 @@ async fn search_username(
         error_output
     });
 
-    let reader = BufReader::new(stdout);
-    let mut lines = reader.lines();
-    let mut found_count = 0u32;
-    let mut checked_count = 0u32;
+    // Read stdout with global timeout
+    let app_for_read = app.clone();
+    let print_all = options.print_all;
+    let read_result = tokio::time::timeout(
+        std::time::Duration::from_secs(GLOBAL_SEARCH_TIMEOUT_SECS),
+        async move {
+            let reader = BufReader::new(stdout);
+            let mut lines = reader.lines();
+            let mut found_count = 0u32;
+            let mut checked_count = 0u32;
 
-    while let Ok(Some(line)) = lines.next_line().await {
-        if !SEARCH_RUNNING.load(Ordering::SeqCst) {
-            let _ = child.kill().await;
-            emit_event(&app, "complete", "Search cancelled", None);
-            return Ok(());
-        }
+            while let Ok(Some(line)) = lines.next_line().await {
+                if !SEARCH_RUNNING.load(Ordering::SeqCst) {
+                    let _ = child.kill().await;
+                    emit_event(&app_for_read, "complete", "Search cancelled", None);
+                    return (found_count, checked_count, true);
+                }
 
-        let trimmed = line.trim().to_string();
-        if trimmed.is_empty() {
-            continue;
-        }
+                let trimmed = line.trim().to_string();
+                if trimmed.is_empty() {
+                    continue;
+                }
 
-        if debug {
-            emit_event(
-                &app,
-                "debug",
-                &format!("[STDOUT] {}", trimmed),
-                None,
-            );
-        }
-
-        if trimmed.starts_with("[+]") {
-            if let Some(rest) = trimmed.strip_prefix("[+]") {
-                let rest = rest.trim();
-                if let Some((site, _)) = rest.split_once(':') {
-                    let site = site.trim().to_string();
-                    let url = rest[site.len() + 1..].trim().to_string();
-                    found_count += 1;
-                    checked_count += 1;
+                if debug {
                     emit_event(
-                        &app,
-                        "result",
-                        &trimmed,
-                        Some(SherlockResult {
-                            site,
-                            url,
-                            found: true,
-                        }),
-                    );
-                    emit_event(
-                        &app,
-                        "progress",
-                        &format!("{} found / {} checked", found_count, checked_count),
+                        &app_for_read,
+                        "debug",
+                        &format!("[STDOUT] {}", trimmed),
                         None,
                     );
                 }
-            }
-        } else if trimmed.starts_with("[-]") {
-            if let Some(rest) = trimmed.strip_prefix("[-]") {
-                let rest = rest.trim();
-                let site = if let Some((s, _)) = rest.split_once(':') {
-                    s.trim().to_string()
+
+                if trimmed.starts_with("[+]") {
+                    if let Some(rest) = trimmed.strip_prefix("[+]") {
+                        let rest = rest.trim();
+                        if let Some((site, _)) = rest.split_once(':') {
+                            let site = site.trim().to_string();
+                            let url = rest[site.len() + 1..].trim().to_string();
+                            found_count += 1;
+                            checked_count += 1;
+                            emit_event(
+                                &app_for_read,
+                                "result",
+                                &trimmed,
+                                Some(SherlockResult {
+                                    site,
+                                    url,
+                                    found: true,
+                                }),
+                            );
+                            emit_event(
+                                &app_for_read,
+                                "progress",
+                                &format!("{} found / {} checked", found_count, checked_count),
+                                None,
+                            );
+                        }
+                    }
+                } else if trimmed.starts_with("[-]") {
+                    if let Some(rest) = trimmed.strip_prefix("[-]") {
+                        let rest = rest.trim();
+                        let site = if let Some((s, _)) = rest.split_once(':') {
+                            s.trim().to_string()
+                        } else {
+                            rest.to_string()
+                        };
+                        checked_count += 1;
+
+                        if print_all {
+                            emit_event(
+                                &app_for_read,
+                                "result",
+                                &trimmed,
+                                Some(SherlockResult {
+                                    site,
+                                    url: String::new(),
+                                    found: false,
+                                }),
+                            );
+                        }
+
+                        emit_event(
+                            &app_for_read,
+                            "progress",
+                            &format!("{} found / {} checked", found_count, checked_count),
+                            None,
+                        );
+                    }
                 } else {
-                    rest.to_string()
-                };
-                checked_count += 1;
-
-                if options.print_all {
-                    emit_event(
-                        &app,
-                        "result",
-                        &trimmed,
-                        Some(SherlockResult {
-                            site,
-                            url: String::new(),
-                            found: false,
-                        }),
-                    );
+                    emit_event(&app_for_read, "info", &trimmed, None);
                 }
+            }
 
+            let _ = child.wait().await;
+            (found_count, checked_count, false)
+        },
+    )
+    .await;
+
+    let stderr_output = stderr_handle.await.unwrap_or_default();
+
+    match read_result {
+        Ok((found_count, checked_count, cancelled)) => {
+            // Always report stderr if non-empty
+            if !stderr_output.is_empty() {
+                let event_type = if found_count == 0 { "error" } else { "info" };
                 emit_event(
                     &app,
-                    "progress",
-                    &format!("{} found / {} checked", found_count, checked_count),
+                    event_type,
+                    &format!("Sherlock stderr: {}", stderr_output.trim()),
                     None,
                 );
             }
-        } else {
-            emit_event(&app, "info", &trimmed, None);
+
+            if !cancelled {
+                SEARCH_RUNNING.store(false, Ordering::SeqCst);
+                emit_event(
+                    &app,
+                    "complete",
+                    &format!(
+                        "Done. {} found across {} sites checked.",
+                        found_count, checked_count
+                    ),
+                    None,
+                );
+            }
+        }
+        Err(_) => {
+            SEARCH_RUNNING.store(false, Ordering::SeqCst);
+            emit_event(
+                &app,
+                "error",
+                &format!(
+                    "Search timed out after {} seconds. The process was terminated.",
+                    GLOBAL_SEARCH_TIMEOUT_SECS
+                ),
+                None,
+            );
+            emit_event(&app, "complete", "Search timed out", None);
         }
     }
-
-    let _ = child.wait().await;
-    let stderr_output = stderr_handle.await.unwrap_or_default();
-
-    if !stderr_output.is_empty() && found_count == 0 {
-        emit_event(
-            &app,
-            "error",
-            &format!("Sherlock error: {}", stderr_output.trim()),
-            None,
-        );
-    }
-
-    SEARCH_RUNNING.store(false, Ordering::SeqCst);
-    emit_event(
-        &app,
-        "complete",
-        &format!(
-            "Done. {} found across {} sites checked.",
-            found_count, checked_count
-        ),
-        None,
-    );
 
     Ok(())
 }

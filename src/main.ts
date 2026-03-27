@@ -129,6 +129,7 @@ function setSearching(searching: boolean) {
   if (searching) {
     emptyState.classList.add("hidden");
     progressFill.style.width = "0%";
+    progressFill.style.background = "";
     progressFill.classList.add("indeterminate");
   } else {
     progressFill.classList.remove("indeterminate");
@@ -171,7 +172,9 @@ function addResult(result: SherlockResult) {
     link.addEventListener("click", (e) => {
       e.preventDefault();
       const url = link.getAttribute("data-url");
-      if (url) openUrl(url);
+      if (url && (url.startsWith("https://") || url.startsWith("http://"))) {
+        openUrl(url);
+      }
     });
   }
 
@@ -225,7 +228,7 @@ async function checkDependencies() {
 
     if (!deps.python || !deps.sherlock) {
       depDot.className = "dot dot-error";
-      depText.textContent = "Not ready";
+      depText.textContent = "Sherlock unavailable — please reinstall";
       searchBtn.disabled = true;
       return;
     }
@@ -364,7 +367,11 @@ window.addEventListener("DOMContentLoaded", async () => {
     optionsChevron.classList.toggle("open");
   });
 
-  filterInput.addEventListener("input", filterResults);
+  let filterTimer: ReturnType<typeof setTimeout>;
+  filterInput.addEventListener("input", () => {
+    clearTimeout(filterTimer);
+    filterTimer = setTimeout(filterResults, 150);
+  });
   copyBtn.addEventListener("click", copyAllUrls);
   clearBtn.addEventListener("click", clearResults);
 

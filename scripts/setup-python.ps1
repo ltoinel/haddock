@@ -6,6 +6,8 @@ $ErrorActionPreference = "Stop"
 $PYTHON_VERSION = "3.12.9"
 $PYTHON_ZIP = "python-$PYTHON_VERSION-embed-amd64.zip"
 $PYTHON_URL = "https://www.python.org/ftp/python/$PYTHON_VERSION/$PYTHON_ZIP"
+$PYTHON_SHA256 = "45bddefa7fdc6290a31b111e033aa1a945524fa4e4e2b8a370e924db3e4c62e1"
+$SHERLOCK_VERSION = "0.15.0"
 $DEST = "$PSScriptRoot\..\src-tauri\python-embed"
 
 Write-Host "=== Haddock: Setting up embedded Python + Sherlock ===" -ForegroundColor Cyan
@@ -25,6 +27,14 @@ if (-not (Test-Path $zipPath)) {
     Invoke-WebRequest -Uri $PYTHON_URL -OutFile $zipPath
 }
 
+# Verify SHA-256
+Write-Host "Verifying Python checksum..."
+$hash = (Get-FileHash -Path $zipPath -Algorithm SHA256).Hash.ToLower()
+if ($hash -ne $PYTHON_SHA256) {
+    Remove-Item $zipPath -Force
+    throw "SHA-256 mismatch for Python download! Expected: $PYTHON_SHA256, Got: $hash"
+}
+
 # Extract
 Write-Host "Extracting Python..."
 Expand-Archive -Path $zipPath -DestinationPath $DEST -Force
@@ -35,7 +45,6 @@ if ($pthFile) {
     Write-Host "Enabling site-packages in $($pthFile.Name)..."
     $content = Get-Content $pthFile.FullName
     $content = $content -replace "^#import site", "import site"
-    # Also add Lib\site-packages to the path
     $content += "Lib\site-packages"
     Set-Content $pthFile.FullName $content
 }
@@ -56,9 +65,9 @@ Write-Host "Installing setuptools..."
 & "$DEST\python.exe" -m pip install setuptools --no-warn-script-location --quiet
 if ($LASTEXITCODE -ne 0) { throw "Failed to install setuptools" }
 
-# Install sherlock-project with all dependencies using only prebuilt wheels
-Write-Host "Installing sherlock-project..."
-& "$DEST\python.exe" -m pip install sherlock-project --no-warn-script-location --quiet
+# Install pinned sherlock-project version
+Write-Host "Installing sherlock-project==$SHERLOCK_VERSION..."
+& "$DEST\python.exe" -m pip install "sherlock-project==$SHERLOCK_VERSION" --no-warn-script-location --quiet
 if ($LASTEXITCODE -ne 0) { throw "Failed to install sherlock-project" }
 
 # Verify sherlock is importable
