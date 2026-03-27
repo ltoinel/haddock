@@ -436,9 +436,14 @@ header h1 {
   gap: 0.25rem;
 }
 
+.debug-sheet.expanded .debug-log {
+  height: 50vh;
+}
+
 .debug-log {
   height: 180px;
   overflow-y: auto;
+  transition: height 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   padding: 0 1rem 0.75rem;
   font-family: var(--font-mono);
   font-size: 0.7rem;

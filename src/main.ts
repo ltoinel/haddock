@@ -37,6 +37,8 @@ let optDebug: HTMLInputElement;
 let debugConsole: HTMLElement;
 let debugLog: HTMLElement;
 let debugClearBtn: HTMLButtonElement;
+let debugExpandBtn: HTMLButtonElement;
+let debugCloseBtn: HTMLButtonElement;
 
 // --- State ---
 let isSearching = false;
@@ -317,6 +319,8 @@ window.addEventListener("DOMContentLoaded", async () => {
   debugConsole = document.querySelector("#debug-console")!;
   debugLog = document.querySelector("#debug-log")!;
   debugClearBtn = document.querySelector("#debug-clear")!;
+  debugExpandBtn = document.querySelector("#debug-expand")!;
+  debugCloseBtn = document.querySelector("#debug-close")!;
 
   // Events
   await listen<SearchEvent>("sherlock-event", (event) => {
@@ -371,9 +375,21 @@ window.addEventListener("DOMContentLoaded", async () => {
   copyBtn.addEventListener("click", copyAllUrls);
   clearBtn.addEventListener("click", clearResults);
 
-  optDebug.addEventListener("change", () => {
-    debugConsole.classList.toggle("hidden", !optDebug.checked);
-    document.getElementById("app")!.style.paddingBottom = optDebug.checked ? "220px" : "";
+  function setDebugOpen(open: boolean) {
+    optDebug.checked = open;
+    debugConsole.classList.toggle("hidden", !open);
+    const expanded = debugConsole.classList.contains("expanded");
+    document.getElementById("app")!.style.paddingBottom = open ? (expanded ? "calc(50vh + 60px)" : "220px") : "";
+  }
+
+  optDebug.addEventListener("change", () => setDebugOpen(optDebug.checked));
+
+  debugCloseBtn.addEventListener("click", () => setDebugOpen(false));
+
+  debugExpandBtn.addEventListener("click", () => {
+    debugConsole.classList.toggle("expanded");
+    const expanded = debugConsole.classList.contains("expanded");
+    document.getElementById("app")!.style.paddingBottom = expanded ? "calc(50vh + 60px)" : "220px";
   });
 
   debugClearBtn.addEventListener("click", () => {
