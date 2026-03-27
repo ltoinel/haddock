@@ -5,6 +5,10 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
+/// Windows flag to prevent child processes from spawning a visible console window.
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 #[derive(Clone, Serialize)]
 struct SherlockResult {
     site: String,
@@ -29,9 +33,20 @@ struct SearchOptions {
     browse: bool,
     csv: bool,
     xlsx: bool,
+    debug: bool,
 }
 
 static SEARCH_RUNNING: AtomicBool = AtomicBool::new(false);
+
+/// Apply CREATE_NO_WINDOW on Windows to hide console windows.
+#[cfg(target_os = "windows")]
+fn hide_window(cmd: &mut Command) {
+    use std::os::windows::process::CommandExt;
+    cmd.creation_flags(CREATE_NO_WINDOW);
+}
+
+#[cfg(not(target_os = "windows"))]
+fn hide_window(_cmd: &mut Command) {}
 
 fn get_python_path(app: &AppHandle) -> Result<PathBuf, String> {
     let resource_dir = app
@@ -60,24 +75,20 @@ async fn check_dependencies(app: AppHandle) -> Result<serde_json::Value, String>
 
     let (python_ok, sherlock_ok) = match &python_path {
         Ok(path) => {
-            let python_ok = Command::new(path)
-                .arg("--version")
+            let mut cmd = Command::new(path);
+            cmd.arg("--version")
                 .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null())
-                .status()
-                .await
-                .map(|s| s.success())
-                .unwrap_or(false);
+                .stderr(std::process::Stdio::null());
+            hide_window(&mut cmd);
+            let python_ok = cmd.status().await.map(|s| s.success()).unwrap_or(false);
 
             let sherlock_ok = if python_ok {
-                Command::new(path)
-                    .args(["-m", "sherlock_project", "--version"])
+                let mut cmd = Command::new(path);
+                cmd.args(["-m", "sherlock_project", "--version"])
                     .stdout(std::process::Stdio::null())
-                    .stderr(std::process::Stdio::null())
-                    .status()
-                    .await
-                    .map(|s| s.success())
-                    .unwrap_or(false)
+                    .stderr(std::process::Stdio::null());
+                hide_window(&mut cmd);
+                cmd.status().await.map(|s| s.success()).unwrap_or(false)
             } else {
                 false
             };
@@ -110,7 +121,6 @@ async fn search_username(
         return Err("At least one username is required".to_string());
     }
 
-    // Validate all usernames
     for username in &usernames {
         if username.trim().is_empty() {
             return Err("Username cannot be empty".to_string());
@@ -127,6 +137,7 @@ async fn search_username(
     }
 
     let python_path = get_python_path(&app)?;
+    let debug = options.debug;
 
     SEARCH_RUNNING.store(true, Ordering::SeqCst);
 
@@ -139,81 +150,93 @@ async fn search_username(
     );
 
     // Build command args
-    let mut args: Vec<String> = vec![
-        "-m".to_string(),
-        "sherlock_project".to_string(),
-    ];
+    let mut args: Vec<String> = vec!["-m".to_string(), "sherlock_project".to_string()];
 
-    // Add usernames
     for u in &usernames {
         args.push(u.clone());
     }
 
-    // --print-found or --print-all
     if options.print_all {
         args.push("--print-all".to_string());
     } else {
         args.push("--print-found".to_string());
     }
 
-    // Timeout
     if options.timeout > 0 && options.timeout != 60 {
         args.push("--timeout".to_string());
         args.push(options.timeout.to_string());
     }
 
-    // Proxy
     if !options.proxy.is_empty() {
         args.push("--proxy".to_string());
         args.push(options.proxy.clone());
     }
 
-    // Specific sites
     for site in &options.sites {
         args.push("--site".to_string());
         args.push(site.clone());
     }
 
-    // NSFW
     if options.nsfw {
         args.push("--nsfw".to_string());
     }
 
-    // Browse
     if options.browse {
         args.push("--browse".to_string());
     }
 
-    // CSV
     if options.csv {
         args.push("--csv".to_string());
     }
 
-    // XLSX
     if options.xlsx {
         args.push("--xlsx".to_string());
     }
 
-    // No color (we parse output, colors would interfere)
+    if debug {
+        args.push("--verbose".to_string());
+    }
+
     args.push("--no-color".to_string());
 
-    let mut child = Command::new(&python_path)
-        .args(&args)
+    if debug {
+        emit_event(
+            &app,
+            "debug",
+            &format!("[DEBUG] Command: {} {}", python_path.display(), args.join(" ")),
+            None,
+        );
+    }
+
+    let mut cmd = Command::new(&python_path);
+    cmd.args(&args)
         .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    hide_window(&mut cmd);
+
+    let mut child = cmd
         .spawn()
         .map_err(|e| format!("Failed to start sherlock: {}", e))?;
 
     let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
     let stderr = child.stderr.take().ok_or("Failed to capture stderr")?;
 
-    // Read stderr in background
+    // Read stderr in background — emit lines in debug mode
+    let app_for_stderr = app.clone();
     let stderr_handle = tokio::spawn(async move {
         let reader = BufReader::new(stderr);
         let mut lines = reader.lines();
         let mut error_output = String::new();
         while let Ok(Some(line)) = lines.next_line().await {
             if !line.trim().is_empty() {
+                if debug {
+                    emit_event(
+                        &app_for_stderr,
+                        "debug",
+                        &format!("[STDERR] {}", line.trim()),
+                        None,
+                    );
+                }
                 error_output.push_str(&line);
                 error_output.push('\n');
             }
@@ -221,7 +244,6 @@ async fn search_username(
         error_output
     });
 
-    // Read stdout line by line
     let reader = BufReader::new(stdout);
     let mut lines = reader.lines();
     let mut found_count = 0u32;
@@ -239,7 +261,15 @@ async fn search_username(
             continue;
         }
 
-        // "[+] SiteName: URL" = found
+        if debug {
+            emit_event(
+                &app,
+                "debug",
+                &format!("[STDOUT] {}", trimmed),
+                None,
+            );
+        }
+
         if trimmed.starts_with("[+]") {
             if let Some(rest) = trimmed.strip_prefix("[+]") {
                 let rest = rest.trim();
@@ -267,7 +297,6 @@ async fn search_username(
                 }
             }
         } else if trimmed.starts_with("[-]") {
-            // Not found
             if let Some(rest) = trimmed.strip_prefix("[-]") {
                 let rest = rest.trim();
                 let site = if let Some((s, _)) = rest.split_once(':') {
@@ -297,8 +326,6 @@ async fn search_username(
                     None,
                 );
             }
-        } else if trimmed.starts_with("[*]") || trimmed.starts_with("[!]") {
-            emit_event(&app, "info", &trimmed, None);
         } else {
             emit_event(&app, "info", &trimmed, None);
         }

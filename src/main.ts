@@ -34,6 +34,10 @@ let optPrintAll: HTMLInputElement;
 let optBrowse: HTMLInputElement;
 let optCsv: HTMLInputElement;
 let optXlsx: HTMLInputElement;
+let optDebug: HTMLInputElement;
+let debugConsole: HTMLElement;
+let debugLog: HTMLElement;
+let debugClearBtn: HTMLButtonElement;
 
 // --- State ---
 let isSearching = false;
@@ -62,6 +66,7 @@ interface SearchOptions {
   browse: boolean;
   csv: boolean;
   xlsx: boolean;
+  debug: boolean;
 }
 
 interface ResultEntry {
@@ -86,6 +91,16 @@ function showToast(message: string) {
   setTimeout(() => toast.remove(), 3000);
 }
 
+function appendDebugLine(message: string, type: "stdout" | "stderr" | "cmd" | "error" = "stdout") {
+  if (!optDebug.checked) return;
+  debugConsole.classList.remove("hidden");
+  const line = document.createElement("div");
+  line.className = `debug-line ${type}`;
+  line.textContent = message;
+  debugLog.appendChild(line);
+  debugLog.scrollTop = debugLog.scrollHeight;
+}
+
 function getOptions(): SearchOptions {
   const sitesRaw = optSites.value.trim();
   const sites = sitesRaw ? sitesRaw.split(",").map(s => s.trim()).filter(Boolean) : [];
@@ -99,6 +114,7 @@ function getOptions(): SearchOptions {
     browse: optBrowse.checked,
     csv: optCsv.checked,
     xlsx: optXlsx.checked,
+    debug: optDebug.checked,
   };
 }
 
@@ -243,6 +259,7 @@ async function startSearch() {
   setSearching(true);
   progressText.textContent = `Searching for ${usernames.join(", ")}...`;
   progressCounter.textContent = "";
+  debugLog.innerHTML = "";
 
   try {
     await invoke("search_username", { usernames, options });
@@ -297,6 +314,10 @@ window.addEventListener("DOMContentLoaded", async () => {
   optBrowse = document.querySelector("#opt-browse")!;
   optCsv = document.querySelector("#opt-csv")!;
   optXlsx = document.querySelector("#opt-xlsx")!;
+  optDebug = document.querySelector("#opt-debug")!;
+  debugConsole = document.querySelector("#debug-console")!;
+  debugLog = document.querySelector("#debug-log")!;
+  debugClearBtn = document.querySelector("#debug-clear")!;
 
   // Events
   await listen<SearchEvent>("sherlock-event", (event) => {
@@ -310,6 +331,15 @@ window.addEventListener("DOMContentLoaded", async () => {
         break;
       case "error":
         progressText.textContent = data.message;
+        break;
+      case "debug":
+        if (data.message.startsWith("[DEBUG] Command:")) {
+          appendDebugLine(data.message, "cmd");
+        } else if (data.message.startsWith("[STDERR]")) {
+          appendDebugLine(data.message, "stderr");
+        } else {
+          appendDebugLine(data.message, "stdout");
+        }
         break;
       case "progress":
         progressCounter.textContent = data.message;
@@ -337,6 +367,14 @@ window.addEventListener("DOMContentLoaded", async () => {
   filterInput.addEventListener("input", filterResults);
   copyBtn.addEventListener("click", copyAllUrls);
   clearBtn.addEventListener("click", clearResults);
+
+  optDebug.addEventListener("change", () => {
+    debugConsole.classList.toggle("hidden", !optDebug.checked);
+  });
+
+  debugClearBtn.addEventListener("click", () => {
+    debugLog.innerHTML = "";
+  });
 
   usernameInput.focus();
   await checkDependencies();

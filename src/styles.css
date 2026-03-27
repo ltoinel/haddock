@@ -606,6 +606,61 @@ header h1 {
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
+/* ============ DEBUG CONSOLE ============ */
+.debug-console {
+  margin-top: 1rem;
+  background: #0c0c0e;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  animation: fadeIn 0.2s ease;
+}
+
+.debug-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.85rem;
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.debug-log {
+  height: 200px;
+  overflow-y: auto;
+  padding: 0.5rem 0.85rem;
+  font-family: "JetBrains Mono", "Cascadia Code", "Fira Code", "Consolas", monospace;
+  font-size: 0.72rem;
+  line-height: 1.6;
+}
+
+.debug-line {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.debug-line.stdout {
+  color: var(--text-secondary);
+}
+
+.debug-line.stderr {
+  color: var(--warning);
+}
+
+.debug-line.cmd {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.debug-line.error {
+  color: var(--error);
+}
+
 /* ============ TOAST ============ */
 .toast {
   position: fixed;
