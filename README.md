@@ -63,8 +63,8 @@ npx tauri dev
 ## How it works
 
 1. The build script (`scripts/setup-python.ps1`) downloads:
-   - [Python embeddable package](https://www.python.org/downloads/) (3.12.9) with SHA-256 verification
-   - [sherlock-project](https://pypi.org/project/sherlock-project/) (0.15.0) via pip
+   - [Python embeddable package](https://www.python.org/downloads/) (3.12.10) with SHA-256 verification
+   - [sherlock-project](https://pypi.org/project/sherlock-project/) (0.16.0) via pip
    - [Tor Expert Bundle](https://www.torproject.org/download/tor/) (15.0.8) with SHA-256 verification
 2. Tauri bundles `python-embed/` and `tor/` directories as resources inside the installer.
 3. At runtime, the Rust backend:

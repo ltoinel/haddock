@@ -4,11 +4,11 @@
 $ErrorActionPreference = "Stop"
 
 # === Python config ===
-$PYTHON_VERSION = "3.12.9"
+$PYTHON_VERSION = "3.12.10"
 $PYTHON_ZIP = "python-$PYTHON_VERSION-embed-amd64.zip"
 $PYTHON_URL = "https://www.python.org/ftp/python/$PYTHON_VERSION/$PYTHON_ZIP"
-$PYTHON_SHA256 = "45bddefa7fdc6290a31b111e033aa1a945524fa4e4e2b8a370e924db3e4c62e1"
-$SHERLOCK_VERSION = "0.15.0"
+$PYTHON_SHA256 = "4acbed6dd1c744b0376e3b1cf57ce906f9dc9e95e68824584c8099a63025a3c3"
+$SHERLOCK_VERSION = "0.16.0"
 
 # === Tor config ===
 $TOR_VERSION = "15.0.8"
