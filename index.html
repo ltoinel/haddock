@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Haddock - Sherlock OSINT</title>
+    <script type="module" src="/src/main.ts" defer></script>
+  </head>
+
+  <body>
+    <div id="app">
+      <!-- Header -->
+      <header>
+        <div class="logo-section">
+          <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.35-4.35"/>
+          </svg>
+          <h1>Haddock</h1>
+        </div>
+        <p class="subtitle">Sherlock OSINT - Username Search</p>
+      </header>
+
+      <!-- Dependency check banner -->
+      <div id="dep-banner" class="banner hidden">
+        <span id="dep-message"></span>
+      </div>
+
+      <!-- Search section -->
+      <div class="search-section">
+        <form id="search-form">
+          <div class="search-bar">
+            <input
+              type="text"
+              id="username-input"
+              placeholder="Enter a username to search..."
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <button type="submit" id="search-btn" class="btn btn-primary">
+              Search
+            </button>
+            <button type="button" id="cancel-btn" class="btn btn-cancel hidden">
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Status -->
+      <div id="status" class="status hidden"></div>
+
+      <!-- Results -->
+      <div id="results-section" class="results-section hidden">
+        <div class="results-header">
+          <h2>Results <span id="result-count" class="badge">0</span></h2>
+        </div>
+        <div id="results-list" class="results-list"></div>
+      </div>
+    </div>
+  </body>
+</html>
