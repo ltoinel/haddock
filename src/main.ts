@@ -32,8 +32,7 @@ let optSites: HTMLInputElement;
 let optNsfw: HTMLInputElement;
 let optPrintAll: HTMLInputElement;
 let optBrowse: HTMLInputElement;
-let optCsv: HTMLInputElement;
-let optXlsx: HTMLInputElement;
+let optTor: HTMLInputElement;
 let optDebug: HTMLInputElement;
 let debugConsole: HTMLElement;
 let debugLog: HTMLElement;
@@ -64,8 +63,7 @@ interface SearchOptions {
   nsfw: boolean;
   print_all: boolean;
   browse: boolean;
-  csv: boolean;
-  xlsx: boolean;
+  tor: boolean;
   debug: boolean;
 }
 
@@ -112,8 +110,7 @@ function getOptions(): SearchOptions {
     nsfw: optNsfw.checked,
     print_all: optPrintAll.checked,
     browse: optBrowse.checked,
-    csv: optCsv.checked,
-    xlsx: optXlsx.checked,
+    tor: optTor.checked,
     debug: optDebug.checked,
   };
 }
@@ -315,8 +312,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   optNsfw = document.querySelector("#opt-nsfw")!;
   optPrintAll = document.querySelector("#opt-print-all")!;
   optBrowse = document.querySelector("#opt-browse")!;
-  optCsv = document.querySelector("#opt-csv")!;
-  optXlsx = document.querySelector("#opt-xlsx")!;
+  optTor = document.querySelector("#opt-tor")!;
   optDebug = document.querySelector("#opt-debug")!;
   debugConsole = document.querySelector("#debug-console")!;
   debugLog = document.querySelector("#debug-log")!;

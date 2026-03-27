@@ -29,7 +29,8 @@
     "active": true,
     "targets": ["nsis"],
     "resources": [
-      "python-embed"
+      "python-embed",
+      "tor"
     ],
     "icon": [
       "icons/32x32.png",

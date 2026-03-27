@@ -5,15 +5,13 @@ use tauri::{AppHandle, Emitter, Manager};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-/// Windows flag to prevent child processes from spawning a visible console window.
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-/// Maximum allowed username length.
 const MAX_USERNAME_LEN: usize = 64;
-
-/// Global search timeout in seconds (safety net).
 const GLOBAL_SEARCH_TIMEOUT_SECS: u64 = 600;
+const TOR_SOCKS_PORT: u16 = 9050;
+const TOR_STARTUP_TIMEOUT_SECS: u64 = 60;
 
 #[derive(Clone, Serialize)]
 struct SherlockResult {
@@ -37,14 +35,12 @@ struct SearchOptions {
     nsfw: bool,
     print_all: bool,
     browse: bool,
-    csv: bool,
-    xlsx: bool,
+    tor: bool,
     debug: bool,
 }
 
 static SEARCH_RUNNING: AtomicBool = AtomicBool::new(false);
 
-/// Apply CREATE_NO_WINDOW on Windows to hide console windows.
 #[cfg(target_os = "windows")]
 fn hide_window(cmd: &mut Command) {
     use std::os::windows::process::CommandExt;
@@ -75,15 +71,123 @@ fn get_python_path(app: &AppHandle) -> Result<PathBuf, String> {
     Err("Embedded Python not found. Please reinstall the application.".to_string())
 }
 
-/// Validate a proxy URL: must match scheme://host[:port] pattern.
+fn get_tor_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let resource_dir = app
+        .path()
+        .resource_dir()
+        .map_err(|e| format!("Failed to get resource dir: {}", e))?;
+
+    let tor_path = resource_dir.join("tor").join("tor.exe");
+    if tor_path.exists() {
+        return Ok(tor_path);
+    }
+
+    let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tor")
+        .join("tor.exe");
+    if dev_path.exists() {
+        return Ok(dev_path);
+    }
+
+    Err("Embedded Tor not found. Please reinstall the application.".to_string())
+}
+
+/// Start the embedded Tor process and wait for it to be ready.
+async fn start_tor(
+    app: &AppHandle,
+    debug: bool,
+) -> Result<tokio::process::Child, String> {
+    let tor_path = get_tor_path(app)?;
+    let tor_dir = tor_path
+        .parent()
+        .ok_or("Invalid Tor path")?;
+
+    let data_dir = tor_dir.join("data_dir");
+    let _ = std::fs::create_dir_all(&data_dir);
+
+    emit_event(app, "info", "Starting Tor...", None);
+
+    if debug {
+        emit_event(
+            app,
+            "debug",
+            &format!("[DEBUG] Tor path: {}", tor_path.display()),
+            None,
+        );
+    }
+
+    let mut cmd = Command::new(&tor_path);
+    cmd.arg("--SocksPort")
+        .arg(TOR_SOCKS_PORT.to_string())
+        .arg("--DataDirectory")
+        .arg(data_dir.to_str().unwrap_or("data_dir"))
+        .arg("--GeoIPFile")
+        .arg(tor_dir.join("geoip").to_str().unwrap_or(""))
+        .arg("--GeoIPv6File")
+        .arg(tor_dir.join("geoip6").to_str().unwrap_or(""))
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    hide_window(&mut cmd);
+
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("Failed to start Tor: {}", e))?;
+
+    // Wait for Tor to bootstrap (look for "100%" in stdout)
+    let stdout = child.stdout.take().ok_or("Failed to capture Tor stdout")?;
+    let app_clone = app.clone();
+
+    let bootstrap_result = tokio::time::timeout(
+        std::time::Duration::from_secs(TOR_STARTUP_TIMEOUT_SECS),
+        async move {
+            let reader = BufReader::new(stdout);
+            let mut lines = reader.lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                let trimmed = line.trim().to_string();
+                if debug && !trimmed.is_empty() {
+                    emit_event(
+                        &app_clone,
+                        "debug",
+                        &format!("[TOR] {}", trimmed),
+                        None,
+                    );
+                }
+                if trimmed.contains("Bootstrapped 100%") || trimmed.contains("Done") {
+                    return true;
+                }
+            }
+            false
+        },
+    )
+    .await;
+
+    match bootstrap_result {
+        Ok(true) => {
+            emit_event(app, "info", "Tor connected. Searching anonymously...", None);
+            Ok(child)
+        }
+        Ok(false) => {
+            let _ = child.kill().await;
+            Err("Tor process exited before bootstrapping".to_string())
+        }
+        Err(_) => {
+            let _ = child.kill().await;
+            Err(format!(
+                "Tor failed to connect within {} seconds",
+                TOR_STARTUP_TIMEOUT_SECS
+            ))
+        }
+    }
+}
+
 fn validate_proxy(proxy: &str) -> Result<(), String> {
     if proxy.is_empty() {
         return Ok(());
     }
-    let re_chars = proxy.chars().all(|c| {
-        c.is_alphanumeric() || ".:/-_@[]".contains(c)
-    });
-    if !re_chars {
+    if !proxy
+        .chars()
+        .all(|c| c.is_alphanumeric() || ".:/-_@[]".contains(c))
+    {
         return Err("Invalid proxy URL: contains forbidden characters".to_string());
     }
     if !(proxy.starts_with("http://")
@@ -99,7 +203,6 @@ fn validate_proxy(proxy: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Validate a site name: only allow alphanumeric, dots, hyphens, spaces.
 fn validate_site_name(site: &str) -> Result<(), String> {
     if site.is_empty() {
         return Err("Site name cannot be empty".to_string());
@@ -119,6 +222,7 @@ fn validate_site_name(site: &str) -> Result<(), String> {
 #[tauri::command]
 async fn check_dependencies(app: AppHandle) -> Result<serde_json::Value, String> {
     let python_path = get_python_path(&app);
+    let tor_path = get_tor_path(&app);
 
     let (python_ok, sherlock_ok) = match &python_path {
         Ok(path) => {
@@ -148,7 +252,7 @@ async fn check_dependencies(app: AppHandle) -> Result<serde_json::Value, String>
     Ok(serde_json::json!({
         "python": python_ok,
         "sherlock": sherlock_ok,
-        "python_path": python_path.as_ref().map(|p| p.display().to_string()).unwrap_or_default(),
+        "tor": tor_path.is_ok(),
     }))
 }
 
@@ -164,7 +268,6 @@ async fn search_username(
     usernames: Vec<String>,
     options: SearchOptions,
 ) -> Result<(), String> {
-    // Prevent concurrent searches
     if SEARCH_RUNNING.load(Ordering::SeqCst) {
         return Err("A search is already in progress".to_string());
     }
@@ -173,7 +276,6 @@ async fn search_username(
         return Err("At least one username is required".to_string());
     }
 
-    // Validate usernames
     for username in &usernames {
         if username.trim().is_empty() {
             return Err("Username cannot be empty".to_string());
@@ -195,10 +297,7 @@ async fn search_username(
         }
     }
 
-    // Validate proxy
     validate_proxy(&options.proxy)?;
-
-    // Validate site names
     for site in &options.sites {
         validate_site_name(site)?;
     }
@@ -208,6 +307,22 @@ async fn search_username(
 
     SEARCH_RUNNING.store(true, Ordering::SeqCst);
 
+    // Start Tor if requested
+    let mut tor_process: Option<tokio::process::Child> = None;
+    if options.tor {
+        match start_tor(&app, debug).await {
+            Ok(child) => {
+                tor_process = Some(child);
+            }
+            Err(e) => {
+                SEARCH_RUNNING.store(false, Ordering::SeqCst);
+                emit_event(&app, "error", &format!("Tor error: {}", e), None);
+                emit_event(&app, "complete", "Search aborted — Tor failed to start", None);
+                return Err(e);
+            }
+        }
+    }
+
     let label = usernames.join(", ");
     emit_event(
         &app,
@@ -216,7 +331,7 @@ async fn search_username(
         None,
     );
 
-    // Build command args
+    // Build Sherlock args
     let mut args: Vec<String> = vec!["-m".to_string(), "sherlock_project".to_string()];
 
     for u in &usernames {
@@ -234,7 +349,11 @@ async fn search_username(
         args.push(options.timeout.to_string());
     }
 
-    if !options.proxy.is_empty() {
+    // Tor proxy takes precedence over manual proxy
+    if options.tor {
+        args.push("--proxy".to_string());
+        args.push(format!("socks5://127.0.0.1:{}", TOR_SOCKS_PORT));
+    } else if !options.proxy.is_empty() {
         args.push("--proxy".to_string());
         args.push(options.proxy.clone());
     }
@@ -250,14 +369,6 @@ async fn search_username(
 
     if options.browse {
         args.push("--browse".to_string());
-    }
-
-    if options.csv {
-        args.push("--csv".to_string());
-    }
-
-    if options.xlsx {
-        args.push("--xlsx".to_string());
     }
 
     if debug {
@@ -288,7 +399,6 @@ async fn search_username(
     let stdout = child.stdout.take().ok_or("Failed to capture stdout")?;
     let stderr = child.stderr.take().ok_or("Failed to capture stderr")?;
 
-    // Read stderr in background
     let app_for_stderr = app.clone();
     let stderr_handle = tokio::spawn(async move {
         let reader = BufReader::new(stderr);
@@ -311,7 +421,6 @@ async fn search_username(
         error_output
     });
 
-    // Read stdout with global timeout
     let app_for_read = app.clone();
     let print_all = options.print_all;
     let read_result = tokio::time::timeout(
@@ -412,9 +521,16 @@ async fn search_username(
 
     let stderr_output = stderr_handle.await.unwrap_or_default();
 
+    // Stop Tor if we started it
+    if let Some(mut tor) = tor_process {
+        if debug {
+            emit_event(&app, "debug", "[DEBUG] Stopping Tor...", None);
+        }
+        let _ = tor.kill().await;
+    }
+
     match read_result {
         Ok((found_count, checked_count, cancelled)) => {
-            // Always report stderr if non-empty
             if !stderr_output.is_empty() {
                 let event_type = if found_count == 0 { "error" } else { "info" };
                 emit_event(
