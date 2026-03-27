@@ -397,43 +397,45 @@ window.addEventListener("DOMContentLoaded", async () => {
   copyBtn.addEventListener("click", copyAllUrls);
   clearBtn.addEventListener("click", clearResults);
 
-  // Debug console: cycle collapsed → open → expanded → collapsed
+  // Debug console states: collapsed (header only) ↔ open ↔ expanded
+  const appEl = document.getElementById("app")!;
+  const expandIcon = document.getElementById("debug-expand-icon")!;
+
+  function getDebugState(): "collapsed" | "open" | "expanded" {
+    if (debugConsole.classList.contains("collapsed")) return "collapsed";
+    if (debugConsole.classList.contains("expanded")) return "expanded";
+    return "open";
+  }
+
   function setDebugState(state: "collapsed" | "open" | "expanded") {
     debugConsole.classList.remove("collapsed", "expanded");
-    const icon = document.getElementById("debug-expand-icon")!;
     if (state === "collapsed") {
       debugConsole.classList.add("collapsed");
-      icon.innerHTML = '<path d="m6 9 6-6 6 6"/>';
-      document.getElementById("app")!.style.paddingBottom = "36px";
+      expandIcon.innerHTML = '<path d="m18 15-6-6-6 6"/>'; // chevron up
+      appEl.style.paddingBottom = "36px";
     } else if (state === "expanded") {
       debugConsole.classList.add("expanded");
-      icon.innerHTML = '<path d="m6 15 6 6 6-6"/>';
-      document.getElementById("app")!.style.paddingBottom = "calc(50vh + 50px)";
+      expandIcon.innerHTML = '<path d="m6 9 6 6 6-6"/>'; // chevron down
+      appEl.style.paddingBottom = "calc(50vh + 50px)";
     } else {
-      icon.innerHTML = '<path d="m6 9 6-6 6 6"/>';
-      document.getElementById("app")!.style.paddingBottom = "200px";
+      expandIcon.innerHTML = '<path d="m18 15-6-6-6 6"/>'; // chevron up
+      appEl.style.paddingBottom = "200px";
     }
   }
 
+  // Expand button: collapsed→open, open→expanded, expanded→collapsed
   debugExpandBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    if (debugConsole.classList.contains("collapsed")) {
-      setDebugState("open");
-    } else if (debugConsole.classList.contains("expanded")) {
-      setDebugState("open");
-    } else {
-      setDebugState("expanded");
-    }
+    const s = getDebugState();
+    if (s === "collapsed") setDebugState("open");
+    else if (s === "open") setDebugState("expanded");
+    else setDebugState("collapsed");
   });
 
-  // Click header to toggle collapsed/open
+  // Click header text to toggle collapsed/open
   document.querySelector(".debug-sheet-header")!.addEventListener("click", (e) => {
     if ((e.target as HTMLElement).closest(".debug-sheet-actions")) return;
-    if (debugConsole.classList.contains("collapsed")) {
-      setDebugState("open");
-    } else {
-      setDebugState("collapsed");
-    }
+    setDebugState(getDebugState() === "collapsed" ? "open" : "collapsed");
   });
 
   setDebugState("collapsed");
