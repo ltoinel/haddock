@@ -39,6 +39,9 @@ jobs:
       - name: TypeScript check
         run: npx tsc --noEmit
 
+      - name: Prepare python-embed placeholder
+        run: mkdir -p src-tauri/python-embed && touch src-tauri/python-embed/.gitkeep
+
       - name: Clippy lint
         run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
 
