@@ -19,6 +19,11 @@ const GLOBAL_SEARCH_TIMEOUT_SECS: u64 = 600;
 static SEARCH_RUNNING: AtomicBool = AtomicBool::new(false);
 
 #[tauri::command]
+fn get_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
+#[tauri::command]
 async fn check_dependencies(app: AppHandle) -> Result<serde_json::Value, String> {
     let python_path = get_python_path(&app);
     let tor_available = get_tor_path(&app).is_ok();
@@ -336,6 +341,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
+            get_version,
             check_dependencies,
             search_username,
             cancel_search,

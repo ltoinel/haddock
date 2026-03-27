@@ -212,6 +212,12 @@ window.addEventListener("DOMContentLoaded", async () => {
   });
 
   // --- Init ---
+  try {
+    const version = await invoke<string>("get_version");
+    dom.appVersion.textContent = `v${version}`;
+    document.title = `Haddock v${version}`;
+  } catch { /* dev mode fallback */ }
+
   dom.usernameInput.focus();
   await checkDependencies();
 });

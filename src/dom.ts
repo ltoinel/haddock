@@ -47,6 +47,7 @@ export function bindDOM() {
     expandIcon: getElement("#debug-expand-icon"),
     app: getElement("#app"),
     sherlockLink: getElement("#sherlock-link"),
+    appVersion: getElement("#app-version"),
   };
 }
 
