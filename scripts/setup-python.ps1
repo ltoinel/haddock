@@ -48,11 +48,23 @@ if (-not (Test-Path $getPipPath)) {
 }
 
 Write-Host "Installing pip..."
-& "$DEST\python.exe" $getPipPath --no-warn-script-location 2>&1 | Out-Null
+& "$DEST\python.exe" $getPipPath --no-warn-script-location
+if ($LASTEXITCODE -ne 0) { throw "Failed to install pip" }
 
-# Install sherlock-project
+# Install setuptools (required to build some Sherlock dependencies)
+Write-Host "Installing setuptools..."
+& "$DEST\python.exe" -m pip install setuptools --no-warn-script-location --quiet
+if ($LASTEXITCODE -ne 0) { throw "Failed to install setuptools" }
+
+# Install sherlock-project with all dependencies using only prebuilt wheels
 Write-Host "Installing sherlock-project..."
 & "$DEST\python.exe" -m pip install sherlock-project --no-warn-script-location --quiet
+if ($LASTEXITCODE -ne 0) { throw "Failed to install sherlock-project" }
+
+# Verify sherlock is importable
+Write-Host "Verifying Sherlock installation..."
+& "$DEST\python.exe" -m sherlock_project --version
+if ($LASTEXITCODE -ne 0) { throw "Sherlock verification failed" }
 
 # Clean up unnecessary files to reduce bundle size
 Write-Host "Cleaning up to reduce size..."
@@ -71,8 +83,10 @@ foreach ($dir in $cleanDirs) {
 # Remove __pycache__ directories
 Get-ChildItem -Path $DEST -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
 
-# Remove .dist-info directories (keep only what's needed)
-# Actually, let's keep them as some packages need them
+# Remove .dist-info directories for cleaned packages
+Get-ChildItem -Path "$DEST\Lib\site-packages" -Directory -Filter "pip-*" | Remove-Item -Recurse -Force
+Get-ChildItem -Path "$DEST\Lib\site-packages" -Directory -Filter "setuptools-*" | Remove-Item -Recurse -Force
+Get-ChildItem -Path "$DEST\Lib\site-packages" -Directory -Filter "wheel-*" | Remove-Item -Recurse -Force
 
 $size = (Get-ChildItem -Path $DEST -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB
 Write-Host ""
