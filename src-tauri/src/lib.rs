@@ -349,10 +349,9 @@ async fn search_username(
         args.push(options.timeout.to_string());
     }
 
-    // Tor proxy takes precedence over manual proxy
+    // Tor flag takes precedence over manual proxy
     if options.tor {
-        args.push("--proxy".to_string());
-        args.push(format!("socks5://127.0.0.1:{}", TOR_SOCKS_PORT));
+        args.push("--tor".to_string());
     } else if !options.proxy.is_empty() {
         args.push("--proxy".to_string());
         args.push(options.proxy.clone());
