@@ -33,14 +33,12 @@ let optNsfw: HTMLInputElement;
 let optPrintAll: HTMLInputElement;
 let optBrowse: HTMLInputElement;
 let optTor: HTMLInputElement;
-let optDebug: HTMLInputElement;
 let torStatus: HTMLElement;
 let torText: HTMLElement;
 let debugConsole: HTMLElement;
 let debugLog: HTMLElement;
 let debugClearBtn: HTMLButtonElement;
 let debugExpandBtn: HTMLButtonElement;
-let debugCloseBtn: HTMLButtonElement;
 
 // --- State ---
 let isSearching = false;
@@ -68,7 +66,7 @@ interface SearchOptions {
   print_all: boolean;
   browse: boolean;
   tor: boolean;
-  debug: boolean;
+  debug: boolean; // always true
 }
 
 interface ResultEntry {
@@ -94,8 +92,6 @@ function showToast(message: string) {
 }
 
 function appendDebugLine(message: string, type: "stdout" | "stderr" | "cmd" | "error" = "stdout") {
-  if (!optDebug.checked) return;
-  debugConsole.classList.remove("hidden");
   const line = document.createElement("div");
   line.className = `debug-line ${type}`;
   line.textContent = message;
@@ -115,7 +111,7 @@ function getOptions(): SearchOptions {
     print_all: optPrintAll.checked,
     browse: optBrowse.checked,
     tor: optTor.checked,
-    debug: optDebug.checked,
+    debug: true,
   };
 }
 
@@ -338,14 +334,12 @@ window.addEventListener("DOMContentLoaded", async () => {
   optPrintAll = document.querySelector("#opt-print-all")!;
   optBrowse = document.querySelector("#opt-browse")!;
   optTor = document.querySelector("#opt-tor")!;
-  optDebug = document.querySelector("#opt-debug")!;
   torStatus = document.querySelector("#tor-status")!;
   torText = document.querySelector("#tor-text")!;
   debugConsole = document.querySelector("#debug-console")!;
   debugLog = document.querySelector("#debug-log")!;
   debugClearBtn = document.querySelector("#debug-clear")!;
   debugExpandBtn = document.querySelector("#debug-expand")!;
-  debugCloseBtn = document.querySelector("#debug-close")!;
 
   // Events
   await listen<SearchEvent>("sherlock-event", (event) => {
@@ -403,22 +397,46 @@ window.addEventListener("DOMContentLoaded", async () => {
   copyBtn.addEventListener("click", copyAllUrls);
   clearBtn.addEventListener("click", clearResults);
 
-  function setDebugOpen(open: boolean) {
-    optDebug.checked = open;
-    debugConsole.classList.toggle("hidden", !open);
-    const expanded = debugConsole.classList.contains("expanded");
-    document.getElementById("app")!.style.paddingBottom = open ? (expanded ? "calc(50vh + 60px)" : "220px") : "";
+  // Debug console: cycle collapsed → open → expanded → collapsed
+  function setDebugState(state: "collapsed" | "open" | "expanded") {
+    debugConsole.classList.remove("collapsed", "expanded");
+    const icon = document.getElementById("debug-expand-icon")!;
+    if (state === "collapsed") {
+      debugConsole.classList.add("collapsed");
+      icon.innerHTML = '<path d="m6 9 6-6 6 6"/>';
+      document.getElementById("app")!.style.paddingBottom = "36px";
+    } else if (state === "expanded") {
+      debugConsole.classList.add("expanded");
+      icon.innerHTML = '<path d="m6 15 6 6 6-6"/>';
+      document.getElementById("app")!.style.paddingBottom = "calc(50vh + 50px)";
+    } else {
+      icon.innerHTML = '<path d="m6 9 6-6 6 6"/>';
+      document.getElementById("app")!.style.paddingBottom = "200px";
+    }
   }
 
-  optDebug.addEventListener("change", () => setDebugOpen(optDebug.checked));
-
-  debugCloseBtn.addEventListener("click", () => setDebugOpen(false));
-
-  debugExpandBtn.addEventListener("click", () => {
-    debugConsole.classList.toggle("expanded");
-    const expanded = debugConsole.classList.contains("expanded");
-    document.getElementById("app")!.style.paddingBottom = expanded ? "calc(50vh + 60px)" : "220px";
+  debugExpandBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (debugConsole.classList.contains("collapsed")) {
+      setDebugState("open");
+    } else if (debugConsole.classList.contains("expanded")) {
+      setDebugState("open");
+    } else {
+      setDebugState("expanded");
+    }
   });
+
+  // Click header to toggle collapsed/open
+  document.querySelector(".debug-sheet-header")!.addEventListener("click", (e) => {
+    if ((e.target as HTMLElement).closest(".debug-sheet-actions")) return;
+    if (debugConsole.classList.contains("collapsed")) {
+      setDebugState("open");
+    } else {
+      setDebugState("collapsed");
+    }
+  });
+
+  setDebugState("collapsed");
 
   debugClearBtn.addEventListener("click", () => {
     debugLog.innerHTML = "";

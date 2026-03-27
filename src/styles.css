@@ -419,43 +419,22 @@ header h1 {
   right: 0;
   z-index: 900;
   background: #08080e;
-
   border-top: 1px solid var(--border);
-  transform: translateY(0);
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.debug-sheet.hidden {
-  display: block !important;
-  transform: translateY(100%);
-  pointer-events: none;
-}
-
-.debug-sheet-handle {
-  display: flex;
-  justify-content: center;
-  padding: 0.5rem 0 0.25rem;
-  cursor: grab;
-}
-
-.handle-bar {
-  width: 36px;
-  height: 4px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
 }
 
 .debug-sheet-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 1rem 0.4rem;
+  padding: 0.45rem 1rem;
   font-size: 0.68rem;
   font-weight: 600;
   font-family: var(--font-mono);
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  cursor: pointer;
+  user-select: none;
 }
 
 .debug-sheet-actions {
@@ -463,18 +442,25 @@ header h1 {
   gap: 0.25rem;
 }
 
-.debug-sheet.expanded .debug-log {
-  height: 50vh;
-}
-
 .debug-log {
-  height: 180px;
   overflow-y: auto;
   transition: height 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  padding: 0 1rem 0.75rem;
+  padding: 0 1rem 0.5rem;
   font-family: var(--font-mono);
   font-size: 0.7rem;
   line-height: 1.65;
+  height: 160px;
+}
+
+/* Collapsed: only header visible */
+.debug-sheet.collapsed .debug-log {
+  height: 0;
+  padding: 0 1rem;
+}
+
+/* Expanded: half viewport */
+.debug-sheet.expanded .debug-log {
+  height: 50vh;
 }
 
 .debug-line { white-space: pre-wrap; word-break: break-all; }
