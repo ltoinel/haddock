@@ -140,6 +140,24 @@ window.addEventListener("DOMContentLoaded", async () => {
     filterTimer = setTimeout(() => filterResults(dom, allResults), 150);
   });
 
+  // Tor ↔ Proxy mutual exclusion
+  const TOR_PROXY = "socks5://127.0.0.1:9050";
+  dom.optTor.addEventListener("change", () => {
+    if (dom.optTor.checked) {
+      dom.optProxy.value = TOR_PROXY;
+      dom.optProxy.disabled = true;
+    } else {
+      dom.optProxy.value = "";
+      dom.optProxy.disabled = false;
+    }
+  });
+  dom.optProxy.addEventListener("input", () => {
+    if (dom.optProxy.value.trim() && dom.optTor.checked) {
+      dom.optTor.checked = false;
+      dom.optProxy.disabled = false;
+    }
+  });
+
   dom.copyBtn.addEventListener("click", () => copyAllUrls(allResults));
   dom.clearBtn.addEventListener("click", () => {
     clearResults(dom, allResults, counters);
