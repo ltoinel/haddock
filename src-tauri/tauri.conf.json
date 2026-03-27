@@ -13,7 +13,7 @@
     "withGlobalTauri": false,
     "windows": [
       {
-        "title": "Haddock - Sherlock OSINT",
+        "title": "Haddock v0.1",
         "width": 900,
         "height": 700,
         "minWidth": 600,
