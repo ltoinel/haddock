@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Emitter, Manager};
@@ -19,13 +19,21 @@ struct SearchEvent {
     result: Option<SherlockResult>,
 }
 
+#[derive(Deserialize)]
+struct SearchOptions {
+    timeout: u32,
+    proxy: String,
+    sites: Vec<String>,
+    nsfw: bool,
+    print_all: bool,
+    browse: bool,
+    csv: bool,
+    xlsx: bool,
+}
+
 static SEARCH_RUNNING: AtomicBool = AtomicBool::new(false);
 
-/// Returns the path to the embedded Python executable.
-/// In production, it's bundled alongside the app in the resources directory.
-/// In development, it looks in src-tauri/python-embed/.
 fn get_python_path(app: &AppHandle) -> Result<PathBuf, String> {
-    // Production: resolve from Tauri resource directory
     let resource_dir = app
         .path()
         .resource_dir()
@@ -36,7 +44,6 @@ fn get_python_path(app: &AppHandle) -> Result<PathBuf, String> {
         return Ok(python_path);
     }
 
-    // Development fallback: look in src-tauri/python-embed
     let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("python-embed")
         .join("python.exe");
@@ -94,34 +101,104 @@ async fn cancel_search() -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn search_username(app: AppHandle, username: String) -> Result<(), String> {
-    if username.trim().is_empty() {
-        return Err("Username cannot be empty".to_string());
+async fn search_username(
+    app: AppHandle,
+    usernames: Vec<String>,
+    options: SearchOptions,
+) -> Result<(), String> {
+    if usernames.is_empty() {
+        return Err("At least one username is required".to_string());
     }
 
-    if !username
-        .chars()
-        .all(|c| c.is_alphanumeric() || c == '.' || c == '_' || c == '-')
-    {
-        return Err(
-            "Invalid username: only alphanumeric characters, dots, underscores and hyphens are allowed"
-                .to_string(),
-        );
+    // Validate all usernames
+    for username in &usernames {
+        if username.trim().is_empty() {
+            return Err("Username cannot be empty".to_string());
+        }
+        if !username
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '.' || c == '_' || c == '-' || c == '?')
+        {
+            return Err(format!(
+                "Invalid username '{}': only alphanumeric, dots, underscores, hyphens and ? are allowed",
+                username
+            ));
+        }
     }
 
     let python_path = get_python_path(&app)?;
 
     SEARCH_RUNNING.store(true, Ordering::SeqCst);
 
+    let label = usernames.join(", ");
     emit_event(
         &app,
         "info",
-        &format!("Searching for username: {}", username),
+        &format!("Searching for: {}", label),
         None,
     );
 
+    // Build command args
+    let mut args: Vec<String> = vec![
+        "-m".to_string(),
+        "sherlock_project".to_string(),
+    ];
+
+    // Add usernames
+    for u in &usernames {
+        args.push(u.clone());
+    }
+
+    // --print-found or --print-all
+    if options.print_all {
+        args.push("--print-all".to_string());
+    } else {
+        args.push("--print-found".to_string());
+    }
+
+    // Timeout
+    if options.timeout > 0 && options.timeout != 60 {
+        args.push("--timeout".to_string());
+        args.push(options.timeout.to_string());
+    }
+
+    // Proxy
+    if !options.proxy.is_empty() {
+        args.push("--proxy".to_string());
+        args.push(options.proxy.clone());
+    }
+
+    // Specific sites
+    for site in &options.sites {
+        args.push("--site".to_string());
+        args.push(site.clone());
+    }
+
+    // NSFW
+    if options.nsfw {
+        args.push("--nsfw".to_string());
+    }
+
+    // Browse
+    if options.browse {
+        args.push("--browse".to_string());
+    }
+
+    // CSV
+    if options.csv {
+        args.push("--csv".to_string());
+    }
+
+    // XLSX
+    if options.xlsx {
+        args.push("--xlsx".to_string());
+    }
+
+    // No color (we parse output, colors would interfere)
+    args.push("--no-color".to_string());
+
     let mut child = Command::new(&python_path)
-        .args(["-m", "sherlock_project", &username, "--print-found"])
+        .args(&args)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
@@ -148,6 +225,7 @@ async fn search_username(app: AppHandle, username: String) -> Result<(), String>
     let reader = BufReader::new(stdout);
     let mut lines = reader.lines();
     let mut found_count = 0u32;
+    let mut checked_count = 0u32;
 
     while let Ok(Some(line)) = lines.next_line().await {
         if !SEARCH_RUNNING.load(Ordering::SeqCst) {
@@ -161,7 +239,7 @@ async fn search_username(app: AppHandle, username: String) -> Result<(), String>
             continue;
         }
 
-        // Sherlock output with --print-found: "[+] SiteName: URL"
+        // "[+] SiteName: URL" = found
         if trimmed.starts_with("[+]") {
             if let Some(rest) = trimmed.strip_prefix("[+]") {
                 let rest = rest.trim();
@@ -169,6 +247,7 @@ async fn search_username(app: AppHandle, username: String) -> Result<(), String>
                     let site = site.trim().to_string();
                     let url = rest[site.len() + 1..].trim().to_string();
                     found_count += 1;
+                    checked_count += 1;
                     emit_event(
                         &app,
                         "result",
@@ -179,9 +258,48 @@ async fn search_username(app: AppHandle, username: String) -> Result<(), String>
                             found: true,
                         }),
                     );
+                    emit_event(
+                        &app,
+                        "progress",
+                        &format!("{} found / {} checked", found_count, checked_count),
+                        None,
+                    );
                 }
             }
-        } else if !trimmed.starts_with("[-]") {
+        } else if trimmed.starts_with("[-]") {
+            // Not found
+            if let Some(rest) = trimmed.strip_prefix("[-]") {
+                let rest = rest.trim();
+                let site = if let Some((s, _)) = rest.split_once(':') {
+                    s.trim().to_string()
+                } else {
+                    rest.to_string()
+                };
+                checked_count += 1;
+
+                if options.print_all {
+                    emit_event(
+                        &app,
+                        "result",
+                        &trimmed,
+                        Some(SherlockResult {
+                            site,
+                            url: String::new(),
+                            found: false,
+                        }),
+                    );
+                }
+
+                emit_event(
+                    &app,
+                    "progress",
+                    &format!("{} found / {} checked", found_count, checked_count),
+                    None,
+                );
+            }
+        } else if trimmed.starts_with("[*]") || trimmed.starts_with("[!]") {
+            emit_event(&app, "info", &trimmed, None);
+        } else {
             emit_event(&app, "info", &trimmed, None);
         }
     }
@@ -202,7 +320,10 @@ async fn search_username(app: AppHandle, username: String) -> Result<(), String>
     emit_event(
         &app,
         "complete",
-        &format!("Search complete. Found {} sites.", found_count),
+        &format!(
+            "Done. {} found across {} sites checked.",
+            found_count, checked_count
+        ),
         None,
     );
 
