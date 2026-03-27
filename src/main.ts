@@ -2,429 +2,176 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
-// --- DOM refs ---
-let usernameInput: HTMLInputElement;
-let searchBtn: HTMLButtonElement;
-let cancelBtn: HTMLButtonElement;
-let searchForm: HTMLFormElement;
-let depDot: HTMLElement;
-let depText: HTMLElement;
-let optionsToggle: HTMLButtonElement;
-let optionsChevron: HTMLElement;
-let optionsPanel: HTMLElement;
-let progressSection: HTMLElement;
-let progressText: HTMLElement;
-let progressCounter: HTMLElement;
-let progressFill: HTMLElement;
-let resultsToolbar: HTMLElement;
-let resultsGrid: HTMLElement;
-let resultCount: HTMLElement;
-let notFoundCount: HTMLElement;
-let filterInput: HTMLInputElement;
-let copyBtn: HTMLButtonElement;
-let clearBtn: HTMLButtonElement;
-let emptyState: HTMLElement;
+import { bindDOM } from "./dom";
+import type { SearchEvent, SearchOptions, ResultEntry } from "./types";
+import { DEFAULT_TIMEOUT } from "./types";
+import {
+  addResult,
+  appendDebugLine,
+  clearResults,
+  copyAllUrls,
+  filterResults,
+  setSearching,
+  updateTorStatus,
+} from "./ui";
 
-// Options
-let optTimeout: HTMLInputElement;
-let optProxy: HTMLInputElement;
-let optSites: HTMLInputElement;
-let optNsfw: HTMLInputElement;
-let optPrintAll: HTMLInputElement;
-let optBrowse: HTMLInputElement;
-let optTor: HTMLInputElement;
-let torStatus: HTMLElement;
-let torText: HTMLElement;
-let debugConsole: HTMLElement;
-let debugLog: HTMLElement;
-let debugClearBtn: HTMLButtonElement;
-let debugExpandBtn: HTMLButtonElement;
+window.addEventListener("DOMContentLoaded", async () => {
+  const dom = bindDOM();
 
-// --- State ---
-let isSearching = false;
-let foundCount = 0;
-let notFoundTotal = 0;
-let allResults: ResultEntry[] = [];
+  // --- Shared state ---
+  const isSearching = { value: false };
+  const counters = { found: 0, notFound: 0 };
+  let allResults: ResultEntry[] = [];
 
-interface SherlockResult {
-  site: string;
-  url: string;
-  found: boolean;
-}
-
-interface SearchEvent {
-  event_type: string;
-  message: string;
-  result: SherlockResult | null;
-}
-
-interface SearchOptions {
-  timeout: number;
-  proxy: string;
-  sites: string[];
-  nsfw: boolean;
-  print_all: boolean;
-  browse: boolean;
-  tor: boolean;
-  debug: boolean; // always true
-}
-
-interface ResultEntry {
-  site: string;
-  url: string;
-  found: boolean;
-  element: HTMLElement;
-}
-
-// --- Helpers ---
-function escapeHtml(str: string): string {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
-}
-
-function showToast(message: string) {
-  const toast = document.createElement("div");
-  toast.className = "toast";
-  toast.textContent = message;
-  document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 3000);
-}
-
-function appendDebugLine(message: string, type: "stdout" | "stderr" | "cmd" | "error" = "stdout") {
-  const line = document.createElement("div");
-  line.className = `debug-line ${type}`;
-  line.textContent = message;
-  debugLog.appendChild(line);
-  debugLog.scrollTop = debugLog.scrollHeight;
-}
-
-function getOptions(): SearchOptions {
-  const sitesRaw = optSites.value.trim();
-  const sites = sitesRaw ? sitesRaw.split(",").map(s => s.trim()).filter(Boolean) : [];
-
-  return {
-    timeout: Math.max(1, parseInt(optTimeout.value) || 60),
-    proxy: optProxy.value.trim(),
-    sites,
-    nsfw: optNsfw.checked,
-    print_all: optPrintAll.checked,
-    browse: optBrowse.checked,
-    tor: optTor.checked,
-    debug: true,
-  };
-}
-
-// --- UI Updates ---
-function setSearching(searching: boolean) {
-  isSearching = searching;
-  searchBtn.classList.toggle("hidden", searching);
-  cancelBtn.classList.toggle("hidden", !searching);
-  usernameInput.disabled = searching;
-  progressSection.classList.toggle("hidden", !searching);
-
-  if (searching) {
-    emptyState.classList.add("hidden");
-    progressFill.style.width = "0%";
-    progressFill.style.background = "";
-    progressFill.classList.add("indeterminate");
-  } else {
-    progressFill.classList.remove("indeterminate");
-    progressFill.style.width = "100%";
-  }
-}
-
-function addResult(result: SherlockResult) {
-  if (result.found) {
-    foundCount++;
-  } else {
-    notFoundTotal++;
+  // --- Helpers ---
+  function getOptions(): SearchOptions {
+    const sitesRaw = dom.optSites.value.trim();
+    const sites = sitesRaw ? sitesRaw.split(",").map(s => s.trim()).filter(Boolean) : [];
+    return {
+      timeout: Math.max(1, parseInt(dom.optTimeout.value) || DEFAULT_TIMEOUT),
+      proxy: dom.optProxy.value.trim(),
+      sites,
+      nsfw: dom.optNsfw.checked,
+      print_all: dom.optPrintAll.checked,
+      browse: dom.optBrowse.checked,
+      tor: dom.optTor.checked,
+      debug: true,
+    };
   }
 
-  resultCount.textContent = foundCount.toString();
-  resultsToolbar.classList.remove("hidden");
-
-  if (notFoundTotal > 0) {
-    notFoundCount.textContent = `${notFoundTotal} not found`;
-    notFoundCount.classList.remove("hidden");
-  }
-
-  const card = document.createElement("div");
-  card.className = `result-card ${result.found ? "found" : "not-found"}`;
-  card.dataset.site = result.site.toLowerCase();
-  card.dataset.found = result.found ? "1" : "0";
-
-  const initials = result.site.substring(0, 2);
-  card.innerHTML = `
-    <div class="result-avatar">${escapeHtml(initials)}</div>
-    <div class="result-info">
-      <div class="result-site-name">${escapeHtml(result.site)}</div>
-      ${result.url ? `<a class="result-url" data-url="${escapeHtml(result.url)}" title="${escapeHtml(result.url)}">${escapeHtml(result.url)}</a>` : `<span class="result-url">Not found</span>`}
-    </div>
-    <span class="result-tag ${result.found ? "found" : "not-found"}">${result.found ? "Found" : "N/A"}</span>
-  `;
-
-  if (result.found && result.url) {
-    const link = card.querySelector(".result-url") as HTMLElement;
-    link.addEventListener("click", (e) => {
-      e.preventDefault();
-      const url = link.getAttribute("data-url");
-      if (url && (url.startsWith("https://") || url.startsWith("http://"))) {
-        openUrl(url);
+  async function checkDependencies() {
+    try {
+      const deps = await invoke<{ python: boolean; sherlock: boolean }>("check_dependencies");
+      if (!deps.python || !deps.sherlock) {
+        dom.depDot.className = "dot dot-error";
+        dom.depText.textContent = "Sherlock unavailable — please reinstall";
+        dom.searchBtn.disabled = true;
+        return;
       }
-    });
+      dom.depDot.className = "dot dot-ok";
+      dom.depText.textContent = "Ready";
+    } catch {
+      dom.depDot.className = "dot dot-error";
+      dom.depText.textContent = "Error";
+    }
   }
 
-  resultsGrid.appendChild(card);
+  async function startSearch() {
+    const raw = dom.usernameInput.value.trim();
+    if (!raw) return;
 
-  allResults.push({ site: result.site, url: result.url, found: result.found, element: card });
+    const usernames = raw.split(/\s+/).filter(Boolean);
+    const options = getOptions();
 
-  // Apply current filter
-  const filterVal = filterInput.value.toLowerCase();
-  if (filterVal && !result.site.toLowerCase().includes(filterVal)) {
-    card.classList.add("hidden");
-  }
-}
+    clearResults(dom, allResults, counters);
+    allResults = [];
+    dom.resultsToolbar.classList.remove("hidden");
+    dom.emptyState.classList.add("hidden");
 
-function filterResults() {
-  const query = filterInput.value.toLowerCase();
-  for (const r of allResults) {
-    const match = r.site.toLowerCase().includes(query) || r.url.toLowerCase().includes(query);
-    r.element.classList.toggle("hidden", !match);
-  }
-}
+    setSearching(dom, true, isSearching);
+    dom.progressText.textContent = `Searching for ${usernames.join(", ")}...`;
+    dom.progressCounter.textContent = "";
+    dom.debugLog.innerHTML = "";
 
-function clearResults() {
-  foundCount = 0;
-  notFoundTotal = 0;
-  allResults = [];
-  resultsGrid.innerHTML = "";
-  resultCount.textContent = "0";
-  notFoundCount.classList.add("hidden");
-  resultsToolbar.classList.add("hidden");
-  progressSection.classList.add("hidden");
-  emptyState.classList.remove("hidden");
-  filterInput.value = "";
-}
-
-function copyAllUrls() {
-  const urls = allResults.filter(r => r.found).map(r => r.url).join("\n");
-  if (!urls) {
-    showToast("No URLs to copy");
-    return;
-  }
-  navigator.clipboard.writeText(urls).then(() => {
-    showToast(`${allResults.filter(r => r.found).length} URLs copied to clipboard`);
-  });
-}
-
-function updateTorStatus(status: string) {
-  torStatus.classList.remove("hidden", "tor-connecting", "tor-connected", "tor-error", "tor-stopped");
-
-  if (status === "connecting" || status.startsWith("connecting:")) {
-    torStatus.classList.add("tor-connecting");
-    const pct = status.includes(":") ? status.split(":")[1] : "...";
-    torText.textContent = `Tor ${pct}`;
-  } else if (status === "connected") {
-    torStatus.classList.add("tor-connected");
-    torText.textContent = "Tor OK";
-  } else if (status === "error") {
-    torStatus.classList.add("tor-error");
-    torText.textContent = "Tor error";
-    setTimeout(() => torStatus.classList.add("hidden"), 5000);
-  } else if (status === "stopped") {
-    torStatus.classList.add("tor-stopped");
-    torText.textContent = "Tor off";
-    setTimeout(() => torStatus.classList.add("hidden"), 3000);
-  }
-}
-
-// --- Core ---
-async function checkDependencies() {
-  try {
-    const deps = await invoke<{ python: boolean; sherlock: boolean; python_path: string }>("check_dependencies");
-
-    if (!deps.python || !deps.sherlock) {
-      depDot.className = "dot dot-error";
-      depText.textContent = "Sherlock unavailable — please reinstall";
-      searchBtn.disabled = true;
-      return;
+    try {
+      await invoke("search_username", { usernames, options });
+    } catch (e) {
+      dom.progressText.textContent = `Error: ${e}`;
+      dom.progressFill.style.background = "var(--error)";
     }
 
-    depDot.className = "dot dot-ok";
-    depText.textContent = "Ready";
-  } catch (e) {
-    depDot.className = "dot dot-error";
-    depText.textContent = `Error`;
-  }
-}
-
-async function startSearch() {
-  const raw = usernameInput.value.trim();
-  if (!raw) return;
-
-  const usernames = raw.split(/\s+/).filter(Boolean);
-  const options = getOptions();
-
-  // Reset
-  foundCount = 0;
-  notFoundTotal = 0;
-  allResults = [];
-  resultsGrid.innerHTML = "";
-  resultCount.textContent = "0";
-  notFoundCount.classList.add("hidden");
-  filterInput.value = "";
-  resultsToolbar.classList.remove("hidden");
-  emptyState.classList.add("hidden");
-
-  setSearching(true);
-  progressText.textContent = `Searching for ${usernames.join(", ")}...`;
-  progressCounter.textContent = "";
-  debugLog.innerHTML = "";
-
-  try {
-    await invoke("search_username", { usernames, options });
-  } catch (e) {
-    progressText.textContent = `Error: ${e}`;
-    progressFill.style.background = "var(--error)";
+    setSearching(dom, false, isSearching);
   }
 
-  setSearching(false);
-}
-
-async function cancelSearch() {
-  try {
-    await invoke("cancel_search");
-  } catch (_) {
-    // ignore
+  async function cancelSearch() {
+    try { await invoke("cancel_search"); } catch { /* ignore */ }
+    setSearching(dom, false, isSearching);
+    dom.progressText.textContent = "Search cancelled";
   }
-  setSearching(false);
-  progressText.textContent = "Search cancelled";
-}
 
-// --- Init ---
-window.addEventListener("DOMContentLoaded", async () => {
-  // Bind DOM
-  usernameInput = document.querySelector("#username-input")!;
-  searchBtn = document.querySelector("#search-btn")!;
-  cancelBtn = document.querySelector("#cancel-btn")!;
-  searchForm = document.querySelector("#search-form")!;
-  depDot = document.querySelector("#dep-dot")!;
-  depText = document.querySelector("#dep-text")!;
-  optionsToggle = document.querySelector("#options-toggle")!;
-  optionsChevron = document.querySelector("#options-chevron")!;
-  optionsPanel = document.querySelector("#options-panel")!;
-  progressSection = document.querySelector("#progress-section")!;
-  progressText = document.querySelector("#progress-text")!;
-  progressCounter = document.querySelector("#progress-counter")!;
-  progressFill = document.querySelector("#progress-fill")!;
-  resultsToolbar = document.querySelector("#results-toolbar")!;
-  resultsGrid = document.querySelector("#results-grid")!;
-  resultCount = document.querySelector("#result-count")!;
-  notFoundCount = document.querySelector("#not-found-count")!;
-  filterInput = document.querySelector("#filter-input")!;
-  copyBtn = document.querySelector("#copy-btn")!;
-  clearBtn = document.querySelector("#clear-btn")!;
-  emptyState = document.querySelector("#empty-state")!;
-
-  optTimeout = document.querySelector("#opt-timeout")!;
-  optProxy = document.querySelector("#opt-proxy")!;
-  optSites = document.querySelector("#opt-sites")!;
-  optNsfw = document.querySelector("#opt-nsfw")!;
-  optPrintAll = document.querySelector("#opt-print-all")!;
-  optBrowse = document.querySelector("#opt-browse")!;
-  optTor = document.querySelector("#opt-tor")!;
-  torStatus = document.querySelector("#tor-status")!;
-  torText = document.querySelector("#tor-text")!;
-  debugConsole = document.querySelector("#debug-console")!;
-  debugLog = document.querySelector("#debug-log")!;
-  debugClearBtn = document.querySelector("#debug-clear")!;
-  debugExpandBtn = document.querySelector("#debug-expand")!;
-
-  // Events
+  // --- Event listener ---
   await listen<SearchEvent>("sherlock-event", (event) => {
-    const data = event.payload;
-    switch (data.event_type) {
+    const { event_type, message, result } = event.payload;
+    switch (event_type) {
       case "result":
-        if (data.result) addResult(data.result);
+        if (result) addResult(dom, result, allResults, counters);
         break;
       case "info":
-        if (isSearching) progressText.textContent = data.message;
+        if (isSearching.value) dom.progressText.textContent = message;
         break;
       case "error":
-        progressText.textContent = data.message;
+        dom.progressText.textContent = message;
         break;
       case "debug":
-        if (data.message.startsWith("[DEBUG] Command:")) {
-          appendDebugLine(data.message, "cmd");
-        } else if (data.message.startsWith("[STDERR]")) {
-          appendDebugLine(data.message, "stderr");
-        } else {
-          appendDebugLine(data.message, "stdout");
-        }
+        if (message.startsWith("[DEBUG] Command:")) appendDebugLine(dom, message, "cmd");
+        else if (message.startsWith("[STDERR]")) appendDebugLine(dom, message, "stderr");
+        else appendDebugLine(dom, message, "stdout");
         break;
       case "tor-status":
-        updateTorStatus(data.message);
+        updateTorStatus(dom, message);
         break;
       case "progress":
-        progressCounter.textContent = data.message;
+        dom.progressCounter.textContent = message;
         break;
       case "complete":
-        progressText.textContent = data.message;
-        progressFill.classList.remove("indeterminate");
-        progressFill.style.width = "100%";
+        dom.progressText.textContent = message;
+        dom.progressFill.classList.remove("indeterminate");
+        dom.progressFill.style.width = "100%";
         break;
     }
   });
 
-  searchForm.addEventListener("submit", (e) => {
+  // --- UI event bindings ---
+  dom.searchForm.addEventListener("submit", (e) => {
     e.preventDefault();
-    if (!isSearching) startSearch();
+    if (!isSearching.value) startSearch();
   });
 
-  cancelBtn.addEventListener("click", cancelSearch);
+  dom.cancelBtn.addEventListener("click", cancelSearch);
 
-  optionsToggle.addEventListener("click", () => {
-    optionsPanel.classList.toggle("hidden");
-    optionsChevron.classList.toggle("open");
+  dom.optionsToggle.addEventListener("click", () => {
+    dom.optionsPanel.classList.toggle("hidden");
+    dom.optionsChevron.classList.toggle("open");
   });
 
   let filterTimer: ReturnType<typeof setTimeout>;
-  filterInput.addEventListener("input", () => {
+  dom.filterInput.addEventListener("input", () => {
     clearTimeout(filterTimer);
-    filterTimer = setTimeout(filterResults, 150);
+    filterTimer = setTimeout(() => filterResults(dom, allResults), 150);
   });
-  copyBtn.addEventListener("click", copyAllUrls);
-  clearBtn.addEventListener("click", clearResults);
 
-  // Debug console states: collapsed (header only) ↔ open ↔ expanded
-  const appEl = document.getElementById("app")!;
-  const expandIcon = document.getElementById("debug-expand-icon")!;
+  dom.copyBtn.addEventListener("click", () => copyAllUrls(allResults));
+  dom.clearBtn.addEventListener("click", () => {
+    clearResults(dom, allResults, counters);
+    allResults = [];
+  });
 
-  function getDebugState(): "collapsed" | "open" | "expanded" {
-    if (debugConsole.classList.contains("collapsed")) return "collapsed";
-    if (debugConsole.classList.contains("expanded")) return "expanded";
+  // --- Debug console ---
+  type DebugState = "collapsed" | "open" | "expanded";
+
+  function getDebugState(): DebugState {
+    if (dom.debugConsole.classList.contains("collapsed")) return "collapsed";
+    if (dom.debugConsole.classList.contains("expanded")) return "expanded";
     return "open";
   }
 
-  function setDebugState(state: "collapsed" | "open" | "expanded") {
-    debugConsole.classList.remove("collapsed", "expanded");
+  function setDebugState(state: DebugState) {
+    dom.debugConsole.classList.remove("collapsed", "expanded");
     if (state === "collapsed") {
-      debugConsole.classList.add("collapsed");
-      expandIcon.innerHTML = '<path d="m18 15-6-6-6 6"/>'; // chevron up
-      appEl.style.paddingBottom = "36px";
+      dom.debugConsole.classList.add("collapsed");
+      dom.expandIcon.innerHTML = '<path d="m18 15-6-6-6 6"/>';
+      dom.app.style.paddingBottom = "36px";
     } else if (state === "expanded") {
-      debugConsole.classList.add("expanded");
-      expandIcon.innerHTML = '<path d="m6 9 6 6 6-6"/>'; // chevron down
-      appEl.style.paddingBottom = "calc(50vh + 50px)";
+      dom.debugConsole.classList.add("expanded");
+      dom.expandIcon.innerHTML = '<path d="m6 9 6 6 6-6"/>';
+      dom.app.style.paddingBottom = "calc(50vh + 50px)";
     } else {
-      expandIcon.innerHTML = '<path d="m18 15-6-6-6 6"/>'; // chevron up
-      appEl.style.paddingBottom = "200px";
+      dom.expandIcon.innerHTML = '<path d="m18 15-6-6-6 6"/>';
+      dom.app.style.paddingBottom = "200px";
     }
   }
 
-  // Expand button: collapsed→open, open→expanded, expanded→collapsed
-  debugExpandBtn.addEventListener("click", (e) => {
+  dom.debugExpandBtn.addEventListener("click", (e) => {
     e.stopPropagation();
     const s = getDebugState();
     if (s === "collapsed") setDebugState("open");
@@ -432,7 +179,6 @@ window.addEventListener("DOMContentLoaded", async () => {
     else setDebugState("collapsed");
   });
 
-  // Click header text to toggle collapsed/open
   document.querySelector(".debug-sheet-header")!.addEventListener("click", (e) => {
     if ((e.target as HTMLElement).closest(".debug-sheet-actions")) return;
     setDebugState(getDebugState() === "collapsed" ? "open" : "collapsed");
@@ -440,15 +186,14 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   setDebugState("collapsed");
 
-  debugClearBtn.addEventListener("click", () => {
-    debugLog.innerHTML = "";
-  });
+  dom.debugClearBtn.addEventListener("click", () => { dom.debugLog.innerHTML = ""; });
 
-  document.getElementById("sherlock-link")!.addEventListener("click", (e) => {
+  dom.sherlockLink.addEventListener("click", (e) => {
     e.preventDefault();
     openUrl("https://github.com/sherlock-project/sherlock");
   });
 
-  usernameInput.focus();
+  // --- Init ---
+  dom.usernameInput.focus();
   await checkDependencies();
 });
