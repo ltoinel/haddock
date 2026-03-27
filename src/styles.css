@@ -125,6 +125,36 @@ header h1 {
   font-weight: 500;
 }
 
+.header-badges {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.tor-badge {
+  color: var(--accent-1);
+  border-color: rgba(168, 85, 247, 0.2);
+}
+
+.tor-badge.tor-connecting {
+  color: var(--warning);
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+.tor-badge.tor-connected {
+  color: var(--success);
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+.tor-badge.tor-error {
+  color: var(--error);
+  border-color: rgba(244, 63, 94, 0.2);
+}
+
+.tor-badge.tor-stopped {
+  color: var(--text-muted);
+}
+
 .dep-status {
   display: flex;
   align-items: center;

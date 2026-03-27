@@ -106,6 +106,7 @@ async fn start_tor(
     let _ = std::fs::create_dir_all(&data_dir);
 
     emit_event(app, "info", "Starting Tor...", None);
+    emit_event(app, "tor-status", "connecting", None);
 
     if debug {
         emit_event(
@@ -152,6 +153,18 @@ async fn start_tor(
                         None,
                     );
                 }
+                // Emit bootstrap progress
+                if trimmed.contains("Bootstrapped") {
+                    if let Some(pct) = trimmed.split("Bootstrapped ").nth(1) {
+                        let progress = pct.split('%').next().unwrap_or("").trim();
+                        emit_event(
+                            &app_clone,
+                            "tor-status",
+                            &format!("connecting:{}%", progress),
+                            None,
+                        );
+                    }
+                }
                 if trimmed.contains("Bootstrapped 100%") || trimmed.contains("Done") {
                     return true;
                 }
@@ -164,13 +177,16 @@ async fn start_tor(
     match bootstrap_result {
         Ok(true) => {
             emit_event(app, "info", "Tor connected. Searching anonymously...", None);
+            emit_event(app, "tor-status", "connected", None);
             Ok(child)
         }
         Ok(false) => {
+            emit_event(app, "tor-status", "error", None);
             let _ = child.kill().await;
             Err("Tor process exited before bootstrapping".to_string())
         }
         Err(_) => {
+            emit_event(app, "tor-status", "error", None);
             let _ = child.kill().await;
             Err(format!(
                 "Tor failed to connect within {} seconds",
@@ -526,6 +542,7 @@ async fn search_username(
             emit_event(&app, "debug", "[DEBUG] Stopping Tor...", None);
         }
         let _ = tor.kill().await;
+        emit_event(&app, "tor-status", "stopped", None);
     }
 
     match read_result {

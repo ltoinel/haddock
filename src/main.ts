@@ -34,6 +34,8 @@ let optPrintAll: HTMLInputElement;
 let optBrowse: HTMLInputElement;
 let optTor: HTMLInputElement;
 let optDebug: HTMLInputElement;
+let torStatus: HTMLElement;
+let torText: HTMLElement;
 let debugConsole: HTMLElement;
 let debugLog: HTMLElement;
 let debugClearBtn: HTMLButtonElement;
@@ -220,6 +222,27 @@ function copyAllUrls() {
   });
 }
 
+function updateTorStatus(status: string) {
+  torStatus.classList.remove("hidden", "tor-connecting", "tor-connected", "tor-error", "tor-stopped");
+
+  if (status === "connecting" || status.startsWith("connecting:")) {
+    torStatus.classList.add("tor-connecting");
+    const pct = status.includes(":") ? status.split(":")[1] : "...";
+    torText.textContent = `Tor ${pct}`;
+  } else if (status === "connected") {
+    torStatus.classList.add("tor-connected");
+    torText.textContent = "Tor OK";
+  } else if (status === "error") {
+    torStatus.classList.add("tor-error");
+    torText.textContent = "Tor error";
+    setTimeout(() => torStatus.classList.add("hidden"), 5000);
+  } else if (status === "stopped") {
+    torStatus.classList.add("tor-stopped");
+    torText.textContent = "Tor off";
+    setTimeout(() => torStatus.classList.add("hidden"), 3000);
+  }
+}
+
 // --- Core ---
 async function checkDependencies() {
   try {
@@ -316,6 +339,8 @@ window.addEventListener("DOMContentLoaded", async () => {
   optBrowse = document.querySelector("#opt-browse")!;
   optTor = document.querySelector("#opt-tor")!;
   optDebug = document.querySelector("#opt-debug")!;
+  torStatus = document.querySelector("#tor-status")!;
+  torText = document.querySelector("#tor-text")!;
   debugConsole = document.querySelector("#debug-console")!;
   debugLog = document.querySelector("#debug-log")!;
   debugClearBtn = document.querySelector("#debug-clear")!;
@@ -343,6 +368,9 @@ window.addEventListener("DOMContentLoaded", async () => {
         } else {
           appendDebugLine(data.message, "stdout");
         }
+        break;
+      case "tor-status":
+        updateTorStatus(data.message);
         break;
       case "progress":
         progressCounter.textContent = data.message;
