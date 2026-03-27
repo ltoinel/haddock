@@ -444,6 +444,11 @@ window.addEventListener("DOMContentLoaded", async () => {
     debugLog.innerHTML = "";
   });
 
+  document.getElementById("sherlock-link")!.addEventListener("click", (e) => {
+    e.preventDefault();
+    openUrl("https://github.com/sherlock-project/sherlock");
+  });
+
   usernameInput.focus();
   await checkDependencies();
 });
