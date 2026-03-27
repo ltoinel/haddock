@@ -138,19 +138,6 @@
         </div>
       </section>
 
-      <!-- Debug console -->
-      <div id="debug-console" class="debug-console hidden">
-        <div class="debug-header">
-          <span>// debug output</span>
-          <button type="button" id="debug-clear" class="btn btn-ghost" title="Clear console" aria-label="Clear debug console">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-              <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
-            </svg>
-          </button>
-        </div>
-        <div id="debug-log" class="debug-log"></div>
-      </div>
-
       <!-- Progress -->
       <div id="progress-section" class="progress-section hidden">
         <div class="progress-info">
@@ -199,6 +186,24 @@
         <p class="empty-title">Ready to scan</p>
         <p class="empty-sub">Enter a username to discover linked accounts across 400+ platforms</p>
       </div>
+    </div>
+
+    <!-- Debug bottom sheet -->
+    <div id="debug-console" class="debug-sheet hidden">
+      <div class="debug-sheet-handle" id="debug-handle">
+        <div class="handle-bar"></div>
+      </div>
+      <div class="debug-sheet-header">
+        <span>// debug</span>
+        <div class="debug-sheet-actions">
+          <button type="button" id="debug-clear" class="btn btn-ghost" title="Clear" aria-label="Clear debug console">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+              <path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div id="debug-log" class="debug-log"></div>
     </div>
   </body>
 </html>

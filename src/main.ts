@@ -373,6 +373,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   optDebug.addEventListener("change", () => {
     debugConsole.classList.toggle("hidden", !optDebug.checked);
+    document.getElementById("app")!.style.paddingBottom = optDebug.checked ? "220px" : "";
   });
 
   debugClearBtn.addEventListener("click", () => {
