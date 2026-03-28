@@ -23,6 +23,12 @@ jobs:
         shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
+          # Ensure semver format (X.Y.Z) — add .0 as needed
+          IFS='.' read -ra PARTS <<< "$VERSION"
+          MAJOR="${PARTS[0]:-0}"
+          MINOR="${PARTS[1]:-0}"
+          PATCH="${PARTS[2]:-0}"
+          VERSION="$MAJOR.$MINOR.$PATCH"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Building version: $VERSION"
 
