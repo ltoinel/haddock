@@ -23,14 +23,123 @@ window.addEventListener("DOMContentLoaded", async () => {
   const counters = { found: 0, notFound: 0 };
   let allResults: ResultEntry[] = [];
 
+  // --- Sites autocomplete ---
+  let availableSites: string[] = [];
+  const selectedSites: string[] = [];
+  let activeIndex = -1;
+
+  function renderTags() {
+    dom.sitesTags.innerHTML = "";
+    for (const site of selectedSites) {
+      const tag = document.createElement("span");
+      tag.className = "site-tag";
+      tag.textContent = site;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "site-tag-remove";
+      btn.textContent = "\u00d7";
+      btn.addEventListener("click", () => { removeTag(site); });
+      tag.appendChild(btn);
+      dom.sitesTags.appendChild(tag);
+    }
+  }
+
+  function removeTag(site: string) {
+    const idx = selectedSites.indexOf(site);
+    if (idx !== -1) selectedSites.splice(idx, 1);
+    renderTags();
+  }
+
+  function addTag(site: string) {
+    if (!selectedSites.includes(site)) {
+      selectedSites.push(site);
+      renderTags();
+    }
+    dom.optSitesInput.value = "";
+    hideDropdown();
+  }
+
+  function hideDropdown() {
+    dom.sitesDropdown.classList.add("hidden");
+    dom.sitesDropdown.innerHTML = "";
+    activeIndex = -1;
+  }
+
+  function showDropdown(query: string) {
+    const q = query.toLowerCase();
+    const matches = availableSites
+      .filter(s => !selectedSites.includes(s) && s.toLowerCase().includes(q))
+      .slice(0, 20);
+
+    if (matches.length === 0) {
+      hideDropdown();
+      return;
+    }
+
+    activeIndex = -1;
+    dom.sitesDropdown.innerHTML = "";
+    for (const site of matches) {
+      const item = document.createElement("div");
+      item.className = "sites-dropdown-item";
+      const idx = site.toLowerCase().indexOf(q);
+      if (q && idx !== -1) {
+        item.innerHTML =
+          escapeHtml(site.slice(0, idx)) +
+          "<mark>" + escapeHtml(site.slice(idx, idx + q.length)) + "</mark>" +
+          escapeHtml(site.slice(idx + q.length));
+      } else {
+        item.textContent = site;
+      }
+      item.addEventListener("mousedown", (e) => { e.preventDefault(); addTag(site); });
+      dom.sitesDropdown.appendChild(item);
+    }
+    dom.sitesDropdown.classList.remove("hidden");
+  }
+
+  function escapeHtml(s: string): string {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  dom.optSitesInput.addEventListener("input", () => {
+    const v = dom.optSitesInput.value.trim();
+    if (v) showDropdown(v);
+    else hideDropdown();
+  });
+
+  dom.optSitesInput.addEventListener("keydown", (e) => {
+    const items = dom.sitesDropdown.querySelectorAll(".sites-dropdown-item");
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      activeIndex = Math.min(activeIndex + 1, items.length - 1);
+      items.forEach((el, i) => el.classList.toggle("active", i === activeIndex));
+      items[activeIndex]?.scrollIntoView({ block: "nearest" });
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      activeIndex = Math.max(activeIndex - 1, 0);
+      items.forEach((el, i) => el.classList.toggle("active", i === activeIndex));
+      items[activeIndex]?.scrollIntoView({ block: "nearest" });
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (activeIndex >= 0 && activeIndex < items.length) {
+        (items[activeIndex] as HTMLElement).dispatchEvent(new MouseEvent("mousedown"));
+      }
+    } else if (e.key === "Backspace" && !dom.optSitesInput.value && selectedSites.length > 0) {
+      removeTag(selectedSites[selectedSites.length - 1]!);
+    } else if (e.key === "Escape") {
+      hideDropdown();
+    }
+  });
+
+  dom.optSitesInput.addEventListener("blur", () => { setTimeout(hideDropdown, 150); });
+
+  dom.optSites.addEventListener("click", () => { dom.optSitesInput.focus(); });
+
   // --- Helpers ---
   function getOptions(): SearchOptions {
-    const sitesRaw = dom.optSites.value.trim();
-    const sites = sitesRaw ? sitesRaw.split(",").map(s => s.trim()).filter(Boolean) : [];
     return {
       timeout: Math.max(1, parseInt(dom.optTimeout.value) || DEFAULT_TIMEOUT),
       proxy: dom.optProxy.value.trim(),
-      sites,
+      sites: [...selectedSites],
       nsfw: dom.optNsfw.checked,
       print_all: dom.optPrintAll.checked,
       browse: dom.optBrowse.checked,
@@ -220,4 +329,9 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   dom.usernameInput.focus();
   await checkDependencies();
+
+  // Load available sites for autocomplete
+  try {
+    availableSites = await invoke<string[]>("get_site_list");
+  } catch { /* sherlock not available yet */ }
 });

@@ -397,6 +397,102 @@ header h1 {
 .option-group input:focus { border-color: var(--accent-1); }
 .option-group input::placeholder { color: var(--text-muted); }
 
+/* Sites autocomplete */
+.sites-autocomplete {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.5rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: border-color var(--transition);
+  cursor: text;
+}
+
+.sites-autocomplete:focus-within { border-color: var(--accent-1); }
+
+.sites-tags { display: contents; }
+
+.site-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.45rem;
+  background: rgba(168, 85, 247, 0.15);
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--accent-1);
+  white-space: nowrap;
+  animation: cardReveal 0.2s ease;
+}
+
+.site-tag-remove {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.85rem;
+  line-height: 1;
+  opacity: 0.6;
+  transition: opacity var(--transition);
+}
+
+.site-tag-remove:hover { opacity: 1; }
+
+.sites-autocomplete input[type="text"] {
+  flex: 1;
+  min-width: 120px;
+  padding: 0.2rem 0.25rem;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-family: var(--font);
+  outline: none;
+}
+
+.sites-autocomplete input::placeholder { color: var(--text-muted); }
+
+.sites-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  background: var(--bg-glass);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  z-index: 100;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.sites-dropdown-item {
+  padding: 0.45rem 0.75rem;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+
+.sites-dropdown-item:hover,
+.sites-dropdown-item.active {
+  background: rgba(168, 85, 247, 0.1);
+  color: var(--text);
+}
+
+.sites-dropdown-item mark {
+  background: none;
+  color: var(--accent-1);
+  font-weight: 600;
+}
+
 /* Toggle */
 .toggle-row { display: flex; align-items: center; justify-content: space-between; }
 

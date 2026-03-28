@@ -92,6 +92,35 @@ async fn check_dependencies(app: AppHandle) -> Result<serde_json::Value, String>
 }
 
 #[tauri::command]
+async fn get_site_list(app: AppHandle) -> Result<Vec<String>, String> {
+    let python_path = get_python_path(&app)?;
+    let mut cmd = Command::new(&python_path);
+    cmd.args(["-m", "sherlock_project", "--site-list"])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    hide_window(&mut cmd);
+
+    let output = cmd
+        .output()
+        .await
+        .map_err(|e| format!("Failed to run sherlock: {}", e))?;
+
+    if !output.status.success() {
+        let err = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("Sherlock --site-list failed: {}", err.trim()));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let sites: Vec<String> = stdout
+        .lines()
+        .map(|l| l.trim().to_string())
+        .filter(|l| !l.is_empty())
+        .collect();
+
+    Ok(sites)
+}
+
+#[tauri::command]
 async fn cancel_search() -> Result<(), String> {
     SEARCH_RUNNING.store(false, Ordering::SeqCst);
     Ok(())
@@ -375,6 +404,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_version,
             check_dependencies,
+            get_site_list,
             search_username,
             cancel_search,
         ])

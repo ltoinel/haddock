@@ -115,8 +115,12 @@
             </div>
 
             <div class="option-group option-group-wide">
-              <label for="opt-sites">Target sites</label>
-              <input type="text" id="opt-sites" placeholder="GitHub, Twitter, Instagram..." />
+              <label for="opt-sites-input">Target sites</label>
+              <div id="opt-sites" class="sites-autocomplete">
+                <div id="sites-tags" class="sites-tags"></div>
+                <input type="text" id="opt-sites-input" placeholder="Type to search sites..." autocomplete="off" spellcheck="false" />
+                <div id="sites-dropdown" class="sites-dropdown hidden"></div>
+              </div>
             </div>
 
             <div class="option-group"><div class="toggle-row">
