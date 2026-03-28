@@ -226,7 +226,8 @@ fn build_sherlock_args(usernames: &[String], options: &SearchOptions) -> Vec<Str
     }
 
     if options.tor {
-        args.push("--tor".to_string());
+        args.push("--proxy".to_string());
+        args.push(format!("socks5://127.0.0.1:{}", crate::tor::TOR_SOCKS_PORT));
     } else if !options.proxy.is_empty() {
         args.push("--proxy".to_string());
         args.push(options.proxy.clone());

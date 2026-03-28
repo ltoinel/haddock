@@ -5,7 +5,7 @@ use tokio::process::Command;
 use crate::events::emit_event;
 use crate::process::{get_tor_path, hide_window};
 
-const TOR_SOCKS_PORT: u16 = 9050;
+pub const TOR_SOCKS_PORT: u16 = 9050;
 const TOR_STARTUP_TIMEOUT_SECS: u64 = 60;
 
 /// Start the embedded Tor process and wait for it to bootstrap.
