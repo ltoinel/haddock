@@ -170,8 +170,11 @@ if ($stdlibZip) {
 }
 
 # --- 5. Clean site-packages ---
-# Remove all .dist-info directories
-Get-ChildItem -Path "$DEST\Lib\site-packages" -Directory -Filter "*.dist-info" | Remove-Item -Recurse -Force
+# Remove .dist-info for build tools only (keep others — needed by importlib.metadata)
+$buildDistInfo = @("pip-*", "setuptools-*", "wheel-*")
+foreach ($pattern in $buildDistInfo) {
+    Get-ChildItem -Path "$DEST\Lib\site-packages" -Directory -Filter "$pattern.dist-info" | Remove-Item -Recurse -Force
+}
 
 # Remove test directories
 Get-ChildItem -Path "$DEST\Lib\site-packages" -Recurse -Directory | Where-Object { $_.Name -match '^(tests?|testing)$' } | Remove-Item -Recurse -Force
