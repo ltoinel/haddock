@@ -84,21 +84,102 @@ Write-Host "Verifying Sherlock installation..."
 & "$DEST\python.exe" -m sherlock_project --version
 if ($LASTEXITCODE -ne 0) { throw "Sherlock verification failed" }
 
-# Clean up
-Write-Host "Cleaning up Python packages..."
-$cleanDirs = @(
-    "$DEST\Lib\site-packages\pip",
-    "$DEST\Lib\site-packages\setuptools",
-    "$DEST\Lib\site-packages\wheel",
-    "$DEST\Lib\site-packages\pkg_resources"
-)
-foreach ($dir in $cleanDirs) {
+# ============================
+# Cleanup: reduce bundle size
+# ============================
+Write-Host "Cleaning up to reduce bundle size..."
+
+# --- 1. Remove build tools (pip, setuptools, wheel) ---
+$buildTools = @("pip", "setuptools", "wheel", "pkg_resources")
+foreach ($pkg in $buildTools) {
+    $dir = "$DEST\Lib\site-packages\$pkg"
     if (Test-Path $dir) { Remove-Item -Recurse -Force $dir }
 }
+
+# --- 2. Remove pandas + numpy (not used since CSV/XLSX export was removed) ---
+$heavyPkgs = @("pandas", "numpy", "numpy.libs", "openpyxl", "et_xmlfile")
+foreach ($pkg in $heavyPkgs) {
+    $dir = "$DEST\Lib\site-packages\$pkg"
+    if (Test-Path $dir) {
+        $pkgSize = [math]::Round((Get-ChildItem -Path $dir -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB, 1)
+        Write-Host "  Removing $pkg ($pkgSize MB)..."
+        Remove-Item -Recurse -Force $dir
+    }
+}
+
+# --- 3. Remove unused top-level binaries ---
+$unusedBinaries = @(
+    "pythonw.exe", "python.cat",
+    "sqlite3.dll", "_sqlite3.pyd",
+    "_msi.pyd", "_wmi.pyd", "winsound.pyd",
+    "_overlapped.pyd", "_asyncio.pyd",
+    "_multiprocessing.pyd", "_uuid.pyd"
+)
+foreach ($bin in $unusedBinaries) {
+    $path = "$DEST\$bin"
+    if (Test-Path $path) { Remove-Item -Force $path }
+}
+
+# --- 4. Strip stdlib zip (remove unused modules) ---
+$stdlibZip = Get-ChildItem "$DEST\python*.zip" | Select-Object -First 1
+if ($stdlibZip) {
+    Write-Host "  Stripping stdlib zip ($($stdlibZip.Name))..."
+    $zipPath = $stdlibZip.FullName
+    $extractDir = "$env:TEMP\stdlib-strip"
+    if (Test-Path $extractDir) { Remove-Item -Recurse -Force $extractDir }
+    Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
+
+    # Directories to remove from stdlib
+    $removeStdlibDirs = @(
+        "lib2to3", "unittest", "asyncio", "multiprocessing", "msilib",
+        "xmlrpc", "wsgiref", "curses", "dbm", "sqlite3", "pydoc_data",
+        "__phello__", "idlelib", "tkinter", "turtledemo", "ensurepip",
+        "distutils", "test", "venv"
+    )
+    foreach ($dir in $removeStdlibDirs) {
+        $target = "$extractDir\$dir"
+        if (Test-Path $target) { Remove-Item -Recurse -Force $target }
+    }
+
+    # Individual modules to remove
+    $removeStdlibFiles = @(
+        "pydoc.pyc", "doctest.pyc", "pdb.pyc", "pickletools.pyc",
+        "profile.pyc", "cProfile.pyc", "trace.pyc", "tracemalloc.pyc",
+        "tabnanny.pyc", "symtable.pyc", "modulefinder.pyc",
+        "antigravity.pyc", "this.pyc", "__hello__.pyc",
+        "nntplib.pyc", "telnetlib.pyc", "cgi.pyc", "cgitb.pyc",
+        "aifc.pyc", "sunau.pyc", "sndhdr.pyc", "imghdr.pyc",
+        "chunk.pyc", "xdrlib.pyc", "pipes.pyc", "mailcap.pyc",
+        "uu.pyc", "optparse.pyc", "imaplib.pyc", "ftplib.pyc",
+        "smtplib.pyc", "poplib.pyc", "mailbox.pyc",
+        "difflib.pyc", "pstats.pyc", "statistics.pyc",
+        "fractions.pyc", "plistlib.pyc", "gettext.pyc",
+        "wave.pyc", "turtle.pyc", "turtledemo.pyc",
+        "_pydecimal.pyc", "_pydatetime.pyc", "_pyio.pyc"
+    )
+    foreach ($file in $removeStdlibFiles) {
+        $target = "$extractDir\$file"
+        if (Test-Path $target) { Remove-Item -Force $target }
+    }
+
+    # Repack
+    Remove-Item -Force $zipPath
+    Compress-Archive -Path "$extractDir\*" -DestinationPath $zipPath -CompressionLevel Optimal
+    Remove-Item -Recurse -Force $extractDir
+}
+
+# --- 5. Clean site-packages ---
+# Remove all .dist-info directories
+Get-ChildItem -Path "$DEST\Lib\site-packages" -Directory -Filter "*.dist-info" | Remove-Item -Recurse -Force
+
+# Remove test directories
+Get-ChildItem -Path "$DEST\Lib\site-packages" -Recurse -Directory | Where-Object { $_.Name -match '^(tests?|testing)$' } | Remove-Item -Recurse -Force
+
+# Remove __pycache__ everywhere
 Get-ChildItem -Path $DEST -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
-Get-ChildItem -Path "$DEST\Lib\site-packages" -Directory -Filter "pip-*" | Remove-Item -Recurse -Force
-Get-ChildItem -Path "$DEST\Lib\site-packages" -Directory -Filter "setuptools-*" | Remove-Item -Recurse -Force
-Get-ChildItem -Path "$DEST\Lib\site-packages" -Directory -Filter "wheel-*" | Remove-Item -Recurse -Force
+
+# Remove .py source files (keep .pyc only) in site-packages
+Get-ChildItem -Path "$DEST\Lib\site-packages" -Recurse -Filter "*.py" | Remove-Item -Force
 
 # ============================
 # Tor Expert Bundle
