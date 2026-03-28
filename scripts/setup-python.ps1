@@ -145,7 +145,7 @@ if ($stdlibZip) {
         "uu.pyc", "optparse.pyc", "imaplib.pyc", "ftplib.pyc",
         "smtplib.pyc", "poplib.pyc", "mailbox.pyc",
         "difflib.pyc", "pstats.pyc", "statistics.pyc",
-        "fractions.pyc", "plistlib.pyc", "gettext.pyc",
+        "fractions.pyc", "plistlib.pyc",
         "wave.pyc", "turtle.pyc", "turtledemo.pyc",
         "_pydecimal.pyc", "_pydatetime.pyc", "_pyio.pyc"
     )
