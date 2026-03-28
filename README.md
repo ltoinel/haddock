@@ -1,8 +1,18 @@
 # Haddock
 
+[![CI](https://github.com/ltoinel/haddock/actions/workflows/ci.yml/badge.svg)](https://github.com/ltoinel/haddock/actions/workflows/ci.yml)
+[![Release](https://github.com/ltoinel/haddock/actions/workflows/build.yml/badge.svg)](https://github.com/ltoinel/haddock/actions/workflows/build.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Tauri](https://img.shields.io/badge/Tauri-v2-blue?logo=tauri&logoColor=white)](https://tauri.app/)
+[![Rust](https://img.shields.io/badge/Rust-stable-orange?logo=rust&logoColor=white)](https://www.rust-lang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Platform](https://img.shields.io/badge/Platform-Windows-0078D6?logo=windows&logoColor=white)](../../releases)
+
 Haddock is a Windows desktop application that provides a clean, user-friendly interface for [Sherlock OSINT](https://github.com/sherlock-project/sherlock), the popular username search tool. It allows anyone to search for a username across 400+ social networks without needing to install Python, Tor, or use a command line.
 
 Built with [Tauri](https://tauri.app/) (Rust + TypeScript), Haddock embeds Python, Sherlock, and Tor directly in the installer — zero external dependencies.
+
+![Haddock Screenshot](docs/screenshot.png)
 
 ## Features
 
