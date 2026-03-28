@@ -96,8 +96,9 @@ foreach ($pkg in $buildTools) {
     if (Test-Path $dir) { Remove-Item -Recurse -Force $dir }
 }
 
-# --- 2. Remove pandas + numpy (not used since CSV/XLSX export was removed) ---
-$heavyPkgs = @("pandas", "numpy", "numpy.libs", "openpyxl", "et_xmlfile")
+# --- 2. Remove unused heavy packages ---
+# Note: pandas is kept because sherlock imports it at module level
+$heavyPkgs = @("numpy.libs")
 foreach ($pkg in $heavyPkgs) {
     $dir = "$DEST\Lib\site-packages\$pkg"
     if (Test-Path $dir) {
@@ -175,11 +176,8 @@ Get-ChildItem -Path "$DEST\Lib\site-packages" -Directory -Filter "*.dist-info" |
 # Remove test directories
 Get-ChildItem -Path "$DEST\Lib\site-packages" -Recurse -Directory | Where-Object { $_.Name -match '^(tests?|testing)$' } | Remove-Item -Recurse -Force
 
-# Remove __pycache__ everywhere
+# Remove __pycache__ (compiled .pyc are redundant alongside .py source files)
 Get-ChildItem -Path $DEST -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
-
-# Remove .py source files (keep .pyc only) in site-packages
-Get-ChildItem -Path "$DEST\Lib\site-packages" -Recurse -Filter "*.py" | Remove-Item -Force
 
 # ============================
 # Tor Expert Bundle
