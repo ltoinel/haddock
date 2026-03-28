@@ -2,68 +2,43 @@
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#8b5cf6"/>
-      <stop offset="100%" stop-color="#6d28d9"/>
-    </linearGradient>
-    <linearGradient id="smoke" x1="0%" y1="100%" x2="0%" y2="0%">
-      <stop offset="0%" stop-color="rgba(255,255,255,0.5)"/>
-      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+      <stop offset="100%" stop-color="#5b21b6"/>
     </linearGradient>
   </defs>
 
-  <!-- Background circle -->
-  <circle cx="256" cy="256" r="246" fill="url(#bg)"/>
-  <circle cx="256" cy="256" r="246" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="4"/>
+  <!-- Background -->
+  <rect width="512" height="512" rx="108" fill="url(#bg)"/>
 
-  <!-- Pipe bowl -->
+  <!-- Pipe bowl — large, bold -->
   <path d="
-    M 310 195
-    L 310 260
-    C 310 310, 360 320, 370 280
-    C 380 240, 370 195, 340 190
+    M 295 150
+    L 295 250
+    C 295 330, 385 340, 400 275
+    C 412 220, 395 150, 348 142
     Z
-  " fill="#fafafa"/>
+  " fill="white"/>
 
-  <!-- Bowl inner shadow / opening -->
-  <ellipse cx="328" cy="195" rx="22" ry="10" fill="#e2e0e7"/>
-  <ellipse cx="328" cy="195" rx="17" ry="7" fill="#4c1d95"/>
+  <!-- Bowl opening -->
+  <ellipse cx="330" cy="152" rx="38" ry="16" fill="rgba(255,255,255,0.7)"/>
+  <ellipse cx="330" cy="152" rx="28" ry="11" fill="#4c1d95"/>
 
-  <!-- Pipe stem - curves from bowl to left -->
+  <!-- Pipe stem — thick, clear curve -->
   <path d="
-    M 310 255
-    C 280 270, 230 275, 190 270
-    C 150 265, 125 280, 108 310
-    L 95 340
-    L 108 348
-    L 122 318
-    C 138 290, 155 278, 195 282
-    C 235 287, 280 282, 310 268
-  " fill="#fafafa"/>
+    M 295 235
+    C 255 260, 195 268, 155 258
+    C 120 248, 95 268, 72 310
+    L 55 350
+    C 52 358, 58 365, 66 362
+    L 85 322
+    C 105 280, 128 264, 162 270
+    C 200 278, 255 272, 295 252
+  " fill="white"/>
 
-  <!-- Mouthpiece tip -->
-  <path d="
-    M 95 340
-    L 80 360
-    C 78 364, 82 368, 86 366
-    L 108 348
-    Z
-  " fill="#e8e4ed"/>
-
-  <!-- Smoke wisps -->
-  <path d="
-    M 320 185
-    C 315 160, 330 145, 322 120
-    C 314 95, 328 75, 320 50
-  " fill="none" stroke="url(#smoke)" stroke-width="6" stroke-linecap="round" opacity="0.4"/>
-
-  <path d="
-    M 338 182
-    C 342 155, 330 140, 340 115
-    C 350 90, 338 65, 345 40
-  " fill="none" stroke="url(#smoke)" stroke-width="5" stroke-linecap="round" opacity="0.3"/>
-
-  <path d="
-    M 350 188
-    C 358 165, 348 148, 358 128
-    C 368 108, 355 85, 362 62
-  " fill="none" stroke="url(#smoke)" stroke-width="4" stroke-linecap="round" opacity="0.2"/>
+  <!-- Smoke wisps — thicker, more visible -->
+  <path d="M 315 140 C 308 105, 330 85, 318 50 C 308 20, 325 5, 318 -15"
+    fill="none" stroke="rgba(255,255,255,0.45)" stroke-width="10" stroke-linecap="round"/>
+  <path d="M 345 138 C 352 100, 335 78, 348 42 C 358 12, 342 -5, 350 -20"
+    fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="8" stroke-linecap="round"/>
+  <path d="M 370 148 C 378 115, 365 95, 375 60"
+    fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="6" stroke-linecap="round"/>
 </svg>
