@@ -14,7 +14,7 @@ $SHERLOCK_VERSION = "0.16.0"
 $TOR_VERSION = "15.0.8"
 $TOR_ARCHIVE = "tor-expert-bundle-windows-x86_64-$TOR_VERSION.tar.gz"
 $TOR_URL = "https://dist.torproject.org/torbrowser/$TOR_VERSION/$TOR_ARCHIVE"
-$TOR_SHA256 = "0f09e0502a1bb6e3a7389b773e20cf112083bf6f25c1786ed8acd4b86273ea18"
+$TOR_SHA256 = "0f09e0502a1bb6e3a7389b773e20cf112083bf6f25c1786ed8adb4b86273ea18"
 
 # === Paths ===
 $DEST = "$PSScriptRoot\..\src-tauri\python-embed"
