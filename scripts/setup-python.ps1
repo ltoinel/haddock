@@ -76,8 +76,8 @@ Write-Host "Installing setuptools..."
 & "$DEST\python.exe" -m pip install setuptools --no-warn-script-location --quiet
 if ($LASTEXITCODE -ne 0) { throw "Failed to install setuptools" }
 
-Write-Host "Installing sherlock-project==$SHERLOCK_VERSION with Tor support..."
-& "$DEST\python.exe" -m pip install "sherlock-project[tor]==$SHERLOCK_VERSION" --no-warn-script-location --quiet
+Write-Host "Installing sherlock-project==$SHERLOCK_VERSION..."
+& "$DEST\python.exe" -m pip install "sherlock-project==$SHERLOCK_VERSION" --no-warn-script-location --quiet
 if ($LASTEXITCODE -ne 0) { throw "Failed to install sherlock-project" }
 
 Write-Host "Verifying Sherlock installation..."
