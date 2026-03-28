@@ -96,17 +96,8 @@ foreach ($pkg in $buildTools) {
     if (Test-Path $dir) { Remove-Item -Recurse -Force $dir }
 }
 
-# --- 2. Remove unused heavy packages ---
-# Note: pandas is kept because sherlock imports it at module level
-$heavyPkgs = @("numpy.libs")
-foreach ($pkg in $heavyPkgs) {
-    $dir = "$DEST\Lib\site-packages\$pkg"
-    if (Test-Path $dir) {
-        $pkgSize = [math]::Round((Get-ChildItem -Path $dir -Recurse | Measure-Object -Property Length -Sum).Sum / 1MB, 1)
-        Write-Host "  Removing $pkg ($pkgSize MB)..."
-        Remove-Item -Recurse -Force $dir
-    }
-}
+# --- 2. Note: numpy.libs is kept because numpy C-extensions need its DLLs ---
+# pandas is also kept because sherlock imports it at module level
 
 # --- 3. Remove unused top-level binaries ---
 $unusedBinaries = @(
