@@ -28,30 +28,61 @@ async fn check_dependencies(app: AppHandle) -> Result<serde_json::Value, String>
     let python_path = get_python_path(&app);
     let tor_available = get_tor_path(&app).is_ok();
 
-    let (python_ok, sherlock_ok) = match &python_path {
+    let (python_ok, sherlock_ok, python_path_str, python_err, sherlock_err) = match &python_path {
         Ok(path) => {
+            let path_str = path.display().to_string();
+
             let mut cmd = Command::new(path);
             cmd.arg("--version")
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null());
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped());
             hide_window(&mut cmd);
-            let python_ok = cmd.status().await.map(|s| s.success()).unwrap_or(false);
-
-            let sherlock_ok = if python_ok {
-                let mut cmd = Command::new(path);
-                cmd.args(["-m", "sherlock_project", "--version"])
-                    .stdout(std::process::Stdio::null())
-                    .stderr(std::process::Stdio::null());
-                hide_window(&mut cmd);
-                cmd.status().await.map(|s| s.success()).unwrap_or(false)
-            } else {
-                false
+            let python_result = cmd.output().await;
+            let python_ok = python_result.as_ref().map(|o| o.status.success()).unwrap_or(false);
+            let python_err = match &python_result {
+                Ok(o) if !o.status.success() => {
+                    String::from_utf8_lossy(&o.stderr).trim().to_string()
+                }
+                Err(e) => e.to_string(),
+                _ => String::new(),
             };
 
-            (python_ok, sherlock_ok)
+            let (sherlock_ok, sherlock_err) = if python_ok {
+                let mut cmd = Command::new(path);
+                cmd.args(["-m", "sherlock_project", "--version"])
+                    .stdout(std::process::Stdio::piped())
+                    .stderr(std::process::Stdio::piped());
+                hide_window(&mut cmd);
+                let result = cmd.output().await;
+                let ok = result.as_ref().map(|o| o.status.success()).unwrap_or(false);
+                let err = match &result {
+                    Ok(o) if !o.status.success() => {
+                        String::from_utf8_lossy(&o.stderr).trim().to_string()
+                    }
+                    Err(e) => e.to_string(),
+                    _ => String::new(),
+                };
+                (ok, err)
+            } else {
+                (false, "Python not available".to_string())
+            };
+
+            (python_ok, sherlock_ok, path_str, python_err, sherlock_err)
         }
-        Err(_) => (false, false),
+        Err(e) => (false, false, String::new(), e.clone(), String::new()),
     };
+
+    // Emit debug info for diagnostics
+    emit_event(&app, "debug", &format!("[CHECK] Python path: {}", python_path_str), None);
+    emit_event(&app, "debug", &format!("[CHECK] Python OK: {}", python_ok), None);
+    if !python_err.is_empty() {
+        emit_event(&app, "debug", &format!("[CHECK] Python error: {}", python_err), None);
+    }
+    emit_event(&app, "debug", &format!("[CHECK] Sherlock OK: {}", sherlock_ok), None);
+    if !sherlock_err.is_empty() {
+        emit_event(&app, "debug", &format!("[CHECK] Sherlock error: {}", sherlock_err), None);
+    }
+    emit_event(&app, "debug", &format!("[CHECK] Tor available: {}", tor_available), None);
 
     Ok(serde_json::json!({
         "python": python_ok,
