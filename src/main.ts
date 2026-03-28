@@ -320,6 +320,27 @@ window.addEventListener("DOMContentLoaded", async () => {
     openUrl("https://github.com/sherlock-project/sherlock");
   });
 
+  // --- Disclaimer ---
+  const DISCLAIMER_KEY = "haddock-disclaimer-accepted";
+
+  function showDisclaimer() {
+    dom.disclaimerOverlay.classList.remove("hidden");
+    dom.disclaimerAccept.addEventListener("change", () => {
+      dom.disclaimerBtn.disabled = !dom.disclaimerAccept.checked;
+    });
+    dom.disclaimerBtn.addEventListener("click", () => {
+      if (dom.disclaimerAccept.checked) {
+        localStorage.setItem(DISCLAIMER_KEY, "true");
+        dom.disclaimerOverlay.classList.add("hidden");
+        dom.usernameInput.focus();
+      }
+    });
+  }
+
+  if (!localStorage.getItem(DISCLAIMER_KEY)) {
+    showDisclaimer();
+  }
+
   // --- Init ---
   try {
     const version = await invoke<string>("get_version");
@@ -327,7 +348,9 @@ window.addEventListener("DOMContentLoaded", async () => {
     document.title = `Haddock v${version}`;
   } catch { /* dev mode fallback */ }
 
-  dom.usernameInput.focus();
+  if (localStorage.getItem(DISCLAIMER_KEY)) {
+    dom.usernameInput.focus();
+  }
   await checkDependencies();
 
   // Load available sites for autocomplete

@@ -197,6 +197,35 @@
       </div>
     </div>
 
+    <!-- Disclaimer modal -->
+    <div id="disclaimer-overlay" class="disclaimer-overlay hidden">
+      <div class="disclaimer-modal">
+        <div class="disclaimer-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="36" height="36">
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </div>
+        <h2>Disclaimer</h2>
+        <div class="disclaimer-text">
+          <p>Haddock is a graphical interface for <strong>Sherlock</strong>, an open-source OSINT tool that searches for usernames across social networks.</p>
+          <p>By using this software, you acknowledge that:</p>
+          <ul>
+            <li><strong>Legal responsibility</strong> &mdash; You are solely responsible for how you use this tool. Searching for usernames you do not own or have authorization to investigate may violate local laws and regulations.</li>
+            <li><strong>Privacy &amp; ethics</strong> &mdash; This tool can reveal personal information across public platforms. Use it ethically and respect others' privacy.</li>
+            <li><strong>No warranty</strong> &mdash; Results may contain false positives or inaccuracies. Do not use them as definitive proof of someone's online presence.</li>
+            <li><strong>Network activity</strong> &mdash; Searches generate HTTP requests to hundreds of websites, which may be logged by those services.</li>
+            <li><strong>Authorized use only</strong> &mdash; This tool is intended for legitimate purposes such as personal security audits, penetration testing with authorization, or searching for your own accounts.</li>
+          </ul>
+        </div>
+        <label class="disclaimer-check">
+          <input type="checkbox" id="disclaimer-accept" />
+          <span>I understand and accept these terms</span>
+        </label>
+        <button type="button" id="disclaimer-btn" class="btn btn-primary" disabled>Continue</button>
+      </div>
+    </div>
+
     <!-- Debug bottom sheet -->
     <div id="debug-console" class="debug-sheet collapsed">
       <div class="debug-sheet-header">

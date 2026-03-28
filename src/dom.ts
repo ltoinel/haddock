@@ -51,6 +51,9 @@ export function bindDOM() {
     app: getElement("#app"),
     sherlockLink: getElement("#sherlock-link"),
     appVersion: getElement("#app-version"),
+    disclaimerOverlay: getElement("#disclaimer-overlay"),
+    disclaimerAccept: getElement<HTMLInputElement>("#disclaimer-accept"),
+    disclaimerBtn: getElement<HTMLButtonElement>("#disclaimer-btn"),
   };
 }
 

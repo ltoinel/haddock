@@ -95,19 +95,24 @@ async fn check_dependencies(app: AppHandle) -> Result<serde_json::Value, String>
 async fn get_site_list(app: AppHandle) -> Result<Vec<String>, String> {
     let python_path = get_python_path(&app)?;
     let mut cmd = Command::new(&python_path);
-    cmd.args(["-m", "sherlock_project", "--site-list"])
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped());
+    cmd.args([
+        "-c",
+        "import json; from importlib.resources import files; \
+         data = json.loads(files('sherlock_project').joinpath('resources/data.json').read_text()); \
+         print('\\n'.join(sorted(data.keys())))",
+    ])
+    .stdout(std::process::Stdio::piped())
+    .stderr(std::process::Stdio::piped());
     hide_window(&mut cmd);
 
     let output = cmd
         .output()
         .await
-        .map_err(|e| format!("Failed to run sherlock: {}", e))?;
+        .map_err(|e| format!("Failed to run python: {}", e))?;
 
     if !output.status.success() {
         let err = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("Sherlock --site-list failed: {}", err.trim()));
+        return Err(format!("Failed to read sherlock site list: {}", err.trim()));
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
