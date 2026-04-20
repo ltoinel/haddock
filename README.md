@@ -12,7 +12,7 @@ Haddock is a Windows desktop application that provides a clean, user-friendly in
 
 Built with [Tauri](https://tauri.app/) (Rust + TypeScript), Haddock embeds Python, Sherlock, and Tor directly in the installer — zero external dependencies.
 
-![Haddock Screenshot](docs/screenshot.png)
+![Haddock Screenshot](docs/screenshot.jpg)
 
 ## Features
 
